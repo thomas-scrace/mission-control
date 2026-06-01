@@ -226,6 +226,10 @@ export async function buildProjects(now = Date.now()): Promise<Project[]> {
 /** Rebuild the topology and reconcile the project store (add/update/remove). */
 export async function refreshProjects(now = Date.now()): Promise<void> {
   const projects = await buildProjects(now);
+  // A build that finds NO projects while we already had some is almost always a transient
+  // git-probe failure (every agent's commonDir momentarily came back empty), not "all repos
+  // vanished" — don't wipe the whole board over it.
+  if (projects.length === 0 && projectStore.all().length > 0) return;
   const seen = new Set(projects.map((p) => p.id));
   for (const p of projects) projectStore.upsert(p);
   for (const existing of projectStore.all()) if (!seen.has(existing.id)) projectStore.remove(existing.id);

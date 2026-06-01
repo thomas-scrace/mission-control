@@ -272,7 +272,20 @@ function watchCodex(): void {
 }
 
 /** Backstop: liveness/idle change produces no fs event, so re-evaluate everything periodically. */
+let sweeping = false;
 async function sweep(): Promise<void> {
+  // Never let a slow sweep overlap the next one — that's how git/gh subprocesses pile up and
+  // flood the machine. If the previous sweep is still running, skip this tick.
+  if (sweeping) return;
+  sweeping = true;
+  try {
+    await sweepOnce();
+  } finally {
+    sweeping = false;
+  }
+}
+
+async function sweepOnce(): Promise<void> {
   const now = Date.now();
   refreshCodexIndex(now);
   for (const agent of store.all()) {

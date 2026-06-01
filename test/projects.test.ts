@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
-import { pickWinner, toSlotAgentRef } from '../src/collector/projects';
-import type { AgentRecord, Liveness, AgentStatus } from '../src/shared/types';
+import { pickWinner, toSlotAgentRef, projectStore, refreshProjects } from '../src/collector/projects';
+import type { AgentRecord, Liveness, AgentStatus, Project } from '../src/shared/types';
 
 // pickWinner only reads id/liveness/updatedAt/status; cast a minimal shape.
 function ag(id: string, liveness: Liveness, updatedAt: number, status: AgentStatus = 'idle'): AgentRecord {
@@ -22,6 +22,17 @@ describe('pickWinner', () => {
     const older = ag('older', 'idle', 1000);
     const newer = ag('newer', 'ended', 5000);
     expect(pickWinner([older, newer])!.id).toBe('newer');
+  });
+});
+
+describe('refreshProjects resilience', () => {
+  it('does NOT wipe existing projects when a build comes back empty (transient git failure)', async () => {
+    const existing: Project = { id: 'repo-x', name: 'x', root: '/x', slots: [], origin: 'discovered', at: 0 };
+    projectStore.upsert(existing);
+    // No agents in the store + no manual projects → buildProjects() returns [] this tick.
+    // The guard must treat that as a transient failure and keep the existing project.
+    await refreshProjects(0);
+    expect(projectStore.get('repo-x')).toBeTruthy();
   });
 });
 
