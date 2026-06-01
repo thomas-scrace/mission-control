@@ -6,12 +6,15 @@ import { WORKTREE_GIT_TTL_MS, WORKTREE_LIST_TTL_MS } from '../shared/config';
 
 const execFileAsync = promisify(execFile);
 
+// Safety cap so the per-path caches can't grow without bound on long-running machines.
+const CACHE_MAX = 2000;
+
 /**
  * Run git with an ARGUMENT ARRAY (never a shell string) so paths — including
  * user-supplied ones — can't inject. Swallows non-zero exits (git exits non-zero
  * on "no upstream", "not a repo", etc.) and returns whatever stdout it produced.
  */
-async function gitOut(args: string[]): Promise<string> {
+export async function gitOut(args: string[]): Promise<string> {
   try {
     const { stdout } = await execFileAsync('git', args, { timeout: 6000, maxBuffer: 8 * 1024 * 1024 });
     return stdout;
@@ -81,6 +84,7 @@ export async function commonDir(p: string): Promise<string | null> {
     }
   }
   commonDirCache.set(p, { t: Date.now(), v });
+  if (commonDirCache.size > CACHE_MAX) commonDirCache.delete(commonDirCache.keys().next().value!);
   return v;
 }
 
@@ -132,5 +136,6 @@ export async function slotGit(p: string, ttl = WORKTREE_GIT_TTL_MS): Promise<Slo
     v = { dirty, ahead, behind, exists: true };
   }
   slotGitCache.set(p, { t: Date.now(), v });
+  if (slotGitCache.size > CACHE_MAX) slotGitCache.delete(slotGitCache.keys().next().value!);
   return v;
 }

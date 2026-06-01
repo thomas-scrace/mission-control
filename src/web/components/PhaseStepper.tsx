@@ -73,23 +73,7 @@ export function PhaseStepper({ phase, variant = 'full' }: Props) {
       aria-label={known ? `Workflow phase: ${label}` : 'Workflow phase unknown'}
     >
       {PHASES.map((p, i) => {
-        const state: 'done' | 'current' | 'todo' | 'unknown' = !known
-          ? 'unknown'
-          : i < current
-            ? 'done'
-            : i === current
-              ? 'current'
-              : 'todo';
-
-        const seg =
-          state === 'done'
-            ? 'bg-accent/70'
-            : state === 'current'
-              ? 'bg-accent'
-              : state === 'todo'
-                ? 'bg-hairline-bright'
-                : 'bg-hairline';
-
+        const state = segmentState(known, i, current);
         return (
           <div
             key={p}
@@ -97,18 +81,11 @@ export function PhaseStepper({ phase, variant = 'full' }: Props) {
             title={PHASE_LABELS[p]}
           >
             <span
-              className={['h-1 w-full rounded-full transition-colors', seg].join(' ')}
+              className={`h-1 w-full rounded-full transition-colors ${SEGMENT_BAR[state]}`}
               aria-hidden
             />
             <span
-              className={[
-                'truncate text-[9px] leading-none tracking-wide',
-                state === 'current'
-                  ? 'font-semibold text-accent'
-                  : state === 'done'
-                    ? 'text-ink-dim'
-                    : 'text-ink-faint',
-              ].join(' ')}
+              className={`truncate text-[9px] leading-none tracking-wide ${SEGMENT_TEXT[state]}`}
             >
               {ABBREV[p]}
             </span>
@@ -118,3 +95,27 @@ export function PhaseStepper({ phase, variant = 'full' }: Props) {
     </div>
   );
 }
+
+type SegmentState = 'done' | 'current' | 'todo' | 'unknown';
+
+/** Where a segment sits relative to the current phase (full-variant only). */
+function segmentState(known: boolean, index: number, current: number): SegmentState {
+  if (!known) return 'unknown';
+  if (index < current) return 'done';
+  if (index === current) return 'current';
+  return 'todo';
+}
+
+const SEGMENT_BAR: Record<SegmentState, string> = {
+  done: 'bg-accent/70',
+  current: 'bg-accent',
+  todo: 'bg-hairline-bright',
+  unknown: 'bg-hairline',
+};
+
+const SEGMENT_TEXT: Record<SegmentState, string> = {
+  done: 'text-ink-dim',
+  current: 'font-semibold text-accent',
+  todo: 'text-ink-faint',
+  unknown: 'text-ink-faint',
+};

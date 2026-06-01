@@ -37,19 +37,12 @@ export interface AgentStream {
   serverTime: number;
 }
 
-function upsert(list: AgentRecord[], agent: AgentRecord): AgentRecord[] {
-  const idx = list.findIndex((a) => a.id === agent.id);
-  if (idx === -1) return [...list, agent];
+/** Replace the item with the same id (in place — no reorder), or append it. */
+function upsertById<T extends { id: string }>(list: T[], item: T): T[] {
+  const idx = list.findIndex((x) => x.id === item.id);
+  if (idx === -1) return [...list, item];
   const next = list.slice();
-  next[idx] = agent;
-  return next;
-}
-
-function upsertProject(list: Project[], project: Project): Project[] {
-  const idx = list.findIndex((p) => p.id === project.id);
-  if (idx === -1) return [...list, project];
-  const next = list.slice();
-  next[idx] = project;
+  next[idx] = item;
   return next;
 }
 
@@ -133,14 +126,14 @@ export function useAgentStream(): AgentStream {
             break;
           case 'upsert':
             // Update in place — NO flash. Content changes without strobing.
-            setAgents((prev) => upsert(prev, parsed.agent));
+            setAgents((prev) => upsertById(prev, parsed.agent));
             setLoading(false);
             break;
           case 'remove':
             setAgents((prev) => prev.filter((a) => a.id !== parsed.id));
             break;
           case 'project-upsert':
-            setProjects((prev) => upsertProject(prev, parsed.project));
+            setProjects((prev) => upsertById(prev, parsed.project));
             break;
           case 'project-remove':
             setProjects((prev) => prev.filter((p) => p.id !== parsed.id));
@@ -166,6 +159,16 @@ export function useAgentStream(): AgentStream {
   return { agents, projects, loading, connection, serverTime };
 }
 
+/** POST JSON (or nothing) to an /api endpoint. Shared by the action helpers below. */
+function postJson(url: string, body?: unknown): Promise<Response> {
+  const init: RequestInit = { method: 'POST' };
+  if (body !== undefined) {
+    init.headers = { 'content-type': 'application/json' };
+    init.body = JSON.stringify(body);
+  }
+  return fetch(url, init);
+}
+
 /**
  * Update user metadata (pin / rename / dismiss / notes) via the meta endpoint.
  * Returns the updated record so callers can merge it optimistically.
@@ -180,29 +183,21 @@ export async function updateMeta(
     order?: number;
   },
 ): Promise<AgentRecord> {
-  const res = await fetch(`/api/agents/${encodeURIComponent(id)}/meta`, {
-    method: 'POST',
-    headers: { 'content-type': 'application/json' },
-    body: JSON.stringify(body),
-  });
+  const res = await postJson(`/api/agents/${encodeURIComponent(id)}/meta`, body);
   if (!res.ok) throw new Error(`meta ${res.status}`);
   return (await res.json()) as AgentRecord;
 }
 
 /** Bring the agent's own window to the front (iTerm tab for Claude, thread for Codex). */
 export async function focusAgent(id: string): Promise<{ ok: boolean; detail: string }> {
-  const res = await fetch(`/api/agents/${encodeURIComponent(id)}/focus`, { method: 'POST' });
+  const res = await postJson(`/api/agents/${encodeURIComponent(id)}/focus`);
   if (!res.ok) throw new Error(`focus ${res.status}`);
   return (await res.json()) as { ok: boolean; detail: string };
 }
 
 /** Start a new agent in an empty worktree slot (Claude = real launch; Codex = open app + copy path). */
 export async function launchAgent(worktreePath: string, tool: Tool): Promise<{ ok: boolean; detail: string }> {
-  const res = await fetch('/api/launch', {
-    method: 'POST',
-    headers: { 'content-type': 'application/json' },
-    body: JSON.stringify({ worktreePath, tool }),
-  });
+  const res = await postJson('/api/launch', { worktreePath, tool });
   if (!res.ok) {
     const body = (await res.json().catch(() => null)) as { detail?: string } | null;
     return { ok: false, detail: body?.detail ?? `launch ${res.status}` };
@@ -212,11 +207,7 @@ export async function launchAgent(worktreePath: string, tool: Tool): Promise<{ o
 
 /** Add a project tab by repo path. The new project arrives via the SSE `project-upsert`. */
 export async function addProject(path: string): Promise<{ ok: boolean; detail: string }> {
-  const res = await fetch('/api/projects', {
-    method: 'POST',
-    headers: { 'content-type': 'application/json' },
-    body: JSON.stringify({ path }),
-  });
+  const res = await postJson('/api/projects', { path });
   if (!res.ok) {
     const body = (await res.json().catch(() => null)) as { error?: string } | null;
     return { ok: false, detail: body?.error ?? `add project ${res.status}` };
@@ -226,11 +217,7 @@ export async function addProject(path: string): Promise<{ ok: boolean; detail: s
 
 /** Tell the server which project tab is in view (bounds empty-slot PR polling). Fire-and-forget. */
 export function setActiveProject(id: string | null): void {
-  void fetch('/api/active-project', {
-    method: 'POST',
-    headers: { 'content-type': 'application/json' },
-    body: JSON.stringify({ id }),
-  }).catch(() => {});
+  void postJson('/api/active-project', { id }).catch(() => {});
 }
 
 /* ── Dev mock data (only used when mockEnabled()) ─────────────────────────── */

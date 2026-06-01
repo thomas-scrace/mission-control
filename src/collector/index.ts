@@ -18,12 +18,15 @@ import { getMeta, getBrief, setMeta } from './meta';
 import { considerSynthesis } from './synthesizer';
 import { considerPr } from './pr';
 import { refreshProjects, scheduleProjectRefresh } from './projects';
-import { run } from './sh';
+import { gitOut } from './git';
 import { idleSeconds } from './time';
 import { tailLines, parseJsonl, readFirstJson } from './tail';
 import { buildClaudeAgent, isClaudeSessionFile } from './adapters/claude';
 import { buildCodexAgent, type CodexThread } from './adapters/codex';
 import { getClaudeProcesses, getCodexHandles, classifyClaudeLiveness, classifyCodexLiveness } from './liveness';
+
+// Safety cap so the per-cwd/path caches can't grow without bound on long-running machines.
+const CACHE_MAX = 2000;
 
 // ───────────────────────── git enrichment (cached per cwd) ─────────────────────────
 const gitCache = new Map<string, { t: number; top: string | null; branch: string | null }>();
@@ -31,11 +34,12 @@ async function gitInfo(cwd: string): Promise<{ top: string | null; branch: strin
   if (!cwd) return { top: null, branch: null };
   const cached = gitCache.get(cwd);
   if (cached && Date.now() - cached.t < GIT_CACHE_MS) return cached;
-  const q = `git -C "${cwd.replace(/"/g, '')}" `;
-  const top = (await run(`${q}rev-parse --show-toplevel 2>/dev/null`)).trim() || null;
-  const branch = (await run(`${q}branch --show-current 2>/dev/null`)).trim() || null;
+  // Arg-array git (no shell) so a maliciously-named cwd can't inject — same safety as git.ts.
+  const top = (await gitOut(['-C', cwd, 'rev-parse', '--show-toplevel'])).trim() || null;
+  const branch = (await gitOut(['-C', cwd, 'branch', '--show-current'])).trim() || null;
   const v = { t: Date.now(), top, branch };
   gitCache.set(cwd, v);
+  if (gitCache.size > CACHE_MAX) gitCache.delete(gitCache.keys().next().value!);
   return v;
 }
 
@@ -96,11 +100,21 @@ function carryEnrichment(agent: AgentRecord): void {
   // Always show the last-known brief immediately (even if slightly stale) rather than blanking to
   // "Synthesizing…" — considerSynthesis refreshes it in the background when the content has changed.
   if (prev?.brief) agent.brief = prev.brief;
-  else {
-    const pb = getBrief(agent.id);
-    if (pb) agent.brief = pb.brief;
-  }
+  else agent.brief = getBrief(agent.id)?.brief ?? null;
   if (prev?.pr) agent.pr = prev.pr;
+}
+
+/**
+ * Store an enriched agent and trigger its async follow-ups: carry forward prior
+ * brief/PR (anti-flicker), upsert, surface a brand-new repo, and kick synthesis + PR fetch.
+ */
+function commitAgent(agent: AgentRecord): void {
+  carryEnrichment(agent);
+  const wasNew = !store.get(agent.id);
+  store.upsert(agent);
+  if (wasNew) scheduleProjectRefresh(); // surface a brand-new repo promptly
+  considerSynthesis(agent, applyBrief);
+  void considerPr(agent, applyPr);
 }
 
 /** Apply a freshly-synthesized brief to the stored record and push it. */
@@ -145,12 +159,7 @@ async function ingestClaudeFile(file: string, now = Date.now()): Promise<void> {
   }
   const enriched = await enrich(agent, now);
   if (enriched.cwd && enriched.cwd.startsWith(MC_DIR)) return; // skip our own synthesis sessions
-  carryEnrichment(enriched);
-  const wasNew = !store.get(enriched.id);
-  store.upsert(enriched);
-  if (wasNew) scheduleProjectRefresh(); // surface a brand-new repo promptly
-  considerSynthesis(enriched, applyBrief);
-  considerPr(enriched, applyPr);
+  commitAgent(enriched);
 }
 
 async function scanClaude(now = Date.now()): Promise<void> {
@@ -203,26 +212,14 @@ async function ingestCodexThread(thread: CodexThread, now = Date.now()): Promise
     tail = await tailLines(thread.rollout_path);
   } catch {
     // rollout file missing but DB row exists — still surface a minimal record
-    const a = await enrich(buildCodexAgent(thread, [], thread.updated_at_ms ?? now), now);
-    carryEnrichment(a);
-    const wasNewMin = !store.get(a.id);
-    store.upsert(a);
-    if (wasNewMin) scheduleProjectRefresh();
-    considerSynthesis(a, applyBrief);
-    considerPr(a, applyPr);
+    commitAgent(await enrich(buildCodexAgent(thread, [], thread.updated_at_ms ?? now), now));
     return;
   }
   const records = parseJsonl(tail.lines);
   // session_meta (with originator) is at the file head for completed threads.
   const head = await readFirstJson(thread.rollout_path).catch(() => null);
   const originator = head?.payload?.originator ?? null;
-  const enriched = await enrich(buildCodexAgent(thread, records, tail.mtimeMs, originator), now);
-  carryEnrichment(enriched);
-  const wasNew = !store.get(enriched.id);
-  store.upsert(enriched);
-  if (wasNew) scheduleProjectRefresh();
-  considerSynthesis(enriched, applyBrief);
-  considerPr(enriched, applyPr);
+  commitAgent(await enrich(buildCodexAgent(thread, records, tail.mtimeMs, originator), now));
 }
 
 async function scanCodex(now = Date.now()): Promise<void> {
@@ -296,7 +293,7 @@ async function sweep(): Promise<void> {
     const e = await enrich({ ...agent }, now);
     store.upsert(e);
     considerSynthesis(e, applyBrief);
-    considerPr(e, applyPr);
+    void considerPr(e, applyPr);
   }
   // Rebuild the project/worktree topology from fresh agent state (git/PR probes are cached).
   await refreshProjects(now);

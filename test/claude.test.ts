@@ -65,6 +65,33 @@ describe('classifyClaudeStatus', () => {
   });
 });
 
+// Plan mode: AskUserQuestion / plan prompts aren't always written to the transcript until
+// answered, so the only on-disk signal can be EnterPlanMode. A session in plan mode is never
+// "idle" — it's researching (busy) or awaiting you (waiting).
+describe('classifyClaudeStatus — plan mode', () => {
+  const permMode = (m: string) => ({ type: 'permission-mode', permissionMode: m });
+
+  it('entered plan mode and yielded (EnterPlanMode matched, no tool in flight) -> waiting', () => {
+    const recs = [assistant('tool_use', [toolUse('ep', 'EnterPlanMode', {})]), toolResult('ep'), permMode('plan')];
+    expect(classifyClaudeStatus(recs).status).toBe('waiting');
+  });
+
+  it('in plan mode, ended a turn presenting the plan as text -> waiting', () => {
+    const recs = [assistant('end_turn', [text('Here is the plan…')]), permMode('plan')];
+    expect(classifyClaudeStatus(recs).status).toBe('waiting');
+  });
+
+  it('in plan mode while researching (a tool is in flight) -> busy', () => {
+    const recs = [permMode('plan'), assistant('tool_use', [toolUse('g', 'Grep', { pattern: 'foo' })])];
+    expect(classifyClaudeStatus(recs).status).toBe('busy');
+  });
+
+  it('a fresh human prompt in plan mode (you just answered) -> busy, not waiting', () => {
+    const recs = [permMode('plan'), assistant('tool_use', [toolUse('ep', 'EnterPlanMode', {})]), toolResult('ep'), { type: 'user', timestamp: ts('06:00'), message: { role: 'user', content: 'go with option 1' } }];
+    expect(classifyClaudeStatus(recs).status).toBe('busy');
+  });
+});
+
 describe('extractClaudeFields', () => {
   const recs = [
     aiTitle('Old title'),

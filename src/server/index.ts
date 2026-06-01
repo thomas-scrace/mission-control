@@ -15,6 +15,17 @@ import { projectStore, refreshProjects, setActiveProject, type ProjectStoreChang
 import { commonDir, showToplevel } from '../collector/git';
 import { considerNotify, primeStatus } from './notify';
 
+/**
+ * A ServerEvent without its `serverTime` — the `send` helper stamps that on.
+ * Distributes over the union (a plain `Omit` would collapse the variants and
+ * drop their per-type fields).
+ */
+type EventPayload = ServerEvent extends infer E
+  ? E extends ServerEvent
+    ? Omit<E, 'serverTime'>
+    : never
+  : never;
+
 /** Reject cross-site POSTs: a local page is fine, a foreign Origin is not. */
 function sameOrigin(req: FastifyRequest): boolean {
   const origin = req.headers.origin;
@@ -52,12 +63,14 @@ async function main(): Promise<void> {
       Connection: 'keep-alive',
       'X-Accel-Buffering': 'no',
     });
-    const send = (ev: ServerEvent) => reply.raw.write(`data: ${JSON.stringify(ev)}\n\n`);
-    send({ type: 'snapshot', agents: store.all(), projects: projectStore.all(), serverTime: Date.now() });
+    // Stamp every event with a fresh server clock at write time.
+    const send = (ev: EventPayload) =>
+      reply.raw.write(`data: ${JSON.stringify({ ...ev, serverTime: Date.now() })}\n\n`);
+    send({ type: 'snapshot', agents: store.all(), projects: projectStore.all() });
 
     const onChange = (c: StoreChange) => {
-      if (c.type === 'upsert') send({ type: 'upsert', agent: c.agent, serverTime: Date.now() });
-      else send({ type: 'remove', id: c.id, serverTime: Date.now() });
+      if (c.type === 'upsert') send({ type: 'upsert', agent: c.agent });
+      else send({ type: 'remove', id: c.id });
     };
     store.on('change', onChange);
 
@@ -67,7 +80,7 @@ async function main(): Promise<void> {
     let flushTimer: ReturnType<typeof setTimeout> | null = null;
     const flush = () => {
       flushTimer = null;
-      for (const p of pendingProjects.values()) send({ type: 'project-upsert', project: p, serverTime: Date.now() });
+      for (const p of pendingProjects.values()) send({ type: 'project-upsert', project: p });
       pendingProjects.clear();
     };
     const onProjectChange = (c: ProjectStoreChange) => {
@@ -76,7 +89,7 @@ async function main(): Promise<void> {
         if (!flushTimer) flushTimer = setTimeout(flush, SSE_COALESCE_MS);
       } else {
         pendingProjects.delete(c.id);
-        send({ type: 'project-remove', id: c.id, serverTime: Date.now() });
+        send({ type: 'project-remove', id: c.id });
       }
     };
     projectStore.on('change', onProjectChange);
@@ -92,6 +105,7 @@ async function main(): Promise<void> {
   });
 
   app.post<{ Params: { id: string }; Body: Record<string, unknown> }>('/api/agents/:id/meta', async (req, reply) => {
+    if (!sameOrigin(req)) return reply.code(403).send({ error: 'forbidden origin' });
     const { id } = req.params;
     const b = req.body ?? {};
     const m = setMeta(id, {
@@ -110,6 +124,7 @@ async function main(): Promise<void> {
 
   // Bring the agent's own window to the front (iTerm tab for Claude, thread for Codex).
   app.post<{ Params: { id: string } }>('/api/agents/:id/focus', async (req, reply) => {
+    if (!sameOrigin(req)) return reply.code(403).send({ error: 'forbidden origin' });
     const agent = store.get(req.params.id);
     if (!agent) return reply.code(404).send({ error: 'agent not found' });
     return focusAgent(agent);
@@ -160,7 +175,8 @@ async function main(): Promise<void> {
   });
 
   // Client hint: which project tab is in view (bounds empty-slot PR polling).
-  app.post<{ Body: { id?: string | null } }>('/api/active-project', async (req) => {
+  app.post<{ Body: { id?: string | null } }>('/api/active-project', async (req, reply) => {
+    if (!sameOrigin(req)) return reply.code(403).send({ error: 'forbidden origin' });
     setActiveProject(req.body?.id ?? null);
     return { ok: true };
   });

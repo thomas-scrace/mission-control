@@ -155,19 +155,6 @@ export function titleText(agent: AgentRecord): string {
   return clean(agent.brief?.title ?? null) ?? displayJob(agent);
 }
 
-/**
- * The fuller one-line description (shown in the drawer / used for search).
- * Falls back to the title/job so it's never blank.
- */
-export function summaryText(agent: AgentRecord): string {
-  return clean(agent.brief?.summary ?? null) ?? titleText(agent);
-}
-
-/** True once the brief has arrived and synthesis succeeded. */
-export function briefReady(agent: AgentRecord): boolean {
-  return agent.brief != null && agent.brief.state === 'ready';
-}
-
 /** True while the brief is still being synthesized (null or pending). */
 export function briefPending(agent: AgentRecord): boolean {
   return agent.brief == null || agent.brief.state === 'pending';
@@ -196,11 +183,6 @@ export function displayJob(agent: AgentRecord): string {
   return 'Untitled session';
 }
 
-/** Short tool badge label. */
-export function toolBadge(tool: AgentRecord['tool']): string {
-  return tool === 'claude' ? 'CC' : 'CDX';
-}
-
 /** Short runtime label, or null when unknown (so the UI can hide it). */
 export function runtimeBadge(runtime: AgentRecord['runtime']): string | null {
   switch (runtime) {
@@ -213,6 +195,38 @@ export function runtimeBadge(runtime: AgentRecord['runtime']): string | null {
     default:
       return null;
   }
+}
+
+/**
+ * The new `order` value to move `draggedId` to `targetIndex` in the full list
+ * (which still contains the dragged card, per Cards.tsx). Returns null when the
+ * position wouldn't change. Orders are large floats so midpoints never collide;
+ * at the very start/end we step out by 1000.
+ */
+export function reorderOrder(
+  agents: readonly AgentRecord[],
+  draggedId: string,
+  targetIndex: number,
+): number | null {
+  const without = agents.filter((a) => a.id !== draggedId);
+  // `targetIndex` indexes the FULL list, but we resolve neighbours in `without`.
+  // When the dragged card sat BEFORE the target, removing it shifts every later
+  // index down by one — so decrement to land just before the target, not after it.
+  const draggedIndex = agents.findIndex((a) => a.id === draggedId);
+  const adjusted = draggedIndex !== -1 && draggedIndex < targetIndex ? targetIndex - 1 : targetIndex;
+  const clamped = Math.max(0, Math.min(adjusted, without.length));
+  const before = without[clamped - 1];
+  const after = without[clamped];
+
+  let newOrder: number;
+  if (before && after) newOrder = (before.order + after.order) / 2;
+  else if (after) newOrder = after.order - 1000;
+  else if (before) newOrder = before.order + 1000;
+  else newOrder = 0;
+
+  const current = agents.find((a) => a.id === draggedId);
+  if (current && current.order === newOrder) return null;
+  return newOrder;
 }
 
 /** The last path segment, e.g. "/Users/me/repo-wt/feat-x" → "feat-x". */

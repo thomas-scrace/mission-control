@@ -1,6 +1,7 @@
 import { useCallback, useState } from 'react';
 import type { AgentRecord } from '../../shared/types';
 import { AgentCard } from './AgentCard';
+import { Swimlanes, Lane } from './Swimlanes';
 
 interface Props {
   agents: AgentRecord[];
@@ -76,8 +77,29 @@ export function Cards({
     [agents, draggingId, onReorder, clearDrag],
   );
 
+  // The whole grid stays one ordered list for drag math (handleDrop indexes into
+  // `agents`); we only SPLIT THE RENDER into Live / Idle bands.
+  const cardFor = (agent: AgentRecord) => (
+    <AgentCard
+      key={agent.id}
+      agent={agent}
+      selected={agent.id === selectedId}
+      idleSec={idleByAgent[agent.id] ?? null}
+      dragging={draggingId === agent.id}
+      dropEdge={draggingId && over.id === agent.id && draggingId !== agent.id ? over.edge : null}
+      onSelect={onSelect}
+      onDragStart={handleDragStart}
+      onDragOver={handleDragOver}
+      onDrop={handleDrop}
+      onDragEnd={clearDrag}
+    />
+  );
+
+  const live = agents.filter((a) => a.liveness === 'live');
+  const idle = agents.filter((a) => a.liveness !== 'live');
+
   return (
-    <div className="min-h-0 flex-1 overflow-y-auto">
+    <div className="flex min-h-0 flex-1 flex-col">
       {loading ? (
         <LoadingState />
       ) : agents.length === 0 ? (
@@ -87,27 +109,18 @@ export function Cards({
           <EmptyState />
         )
       ) : (
-        <div className="mc-fade-in grid grid-cols-[repeat(auto-fill,minmax(380px,1fr))] gap-6 p-6 sm:gap-7 sm:p-8">
-          {agents.map((agent) => (
-            <AgentCard
-              key={agent.id}
-              agent={agent}
-              selected={agent.id === selectedId}
-              idleSec={idleByAgent[agent.id] ?? null}
-              dragging={draggingId === agent.id}
-              dropEdge={
-                draggingId && over.id === agent.id && draggingId !== agent.id
-                  ? over.edge
-                  : null
-              }
-              onSelect={onSelect}
-              onDragStart={handleDragStart}
-              onDragOver={handleDragOver}
-              onDrop={handleDrop}
-              onDragEnd={clearDrag}
-            />
-          ))}
-        </div>
+        <Swimlanes>
+          {live.length > 0 && (
+            <Lane label="Live" count={live.length} tone="live" first>
+              {live.map(cardFor)}
+            </Lane>
+          )}
+          {idle.length > 0 && (
+            <Lane label="Idle" count={idle.length} tone="idle" first={live.length === 0}>
+              {idle.map(cardFor)}
+            </Lane>
+          )}
+        </Swimlanes>
       )}
     </div>
   );

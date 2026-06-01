@@ -23,41 +23,28 @@ const LABEL: Record<Liveness, string> = {
  */
 export function LivenessDot({ liveness, basis, size = 9 }: Props) {
   const title = basis ? `${LABEL[liveness]} — ${basis}` : LABEL[liveness];
-  const dim = size;
-
-  if (liveness === 'live') {
-    return (
-      <span
-        role="img"
-        aria-label={title}
-        title={title}
-        className="mc-dot-live inline-block shrink-0 rounded-full bg-live"
-        style={{ width: dim, height: dim }}
-      />
-    );
-  }
-
-  if (liveness === 'idle') {
-    return (
-      <span
-        role="img"
-        aria-label={title}
-        title={title}
-        className="inline-block shrink-0 rounded-full bg-waiting"
-        style={{ width: dim, height: dim }}
-      />
-    );
-  }
-
-  // ended / unknown -> hollow ring (ended slightly brighter than unknown)
-  const ring = liveness === 'ended' ? 'border-ink-faint' : 'border-unknown';
   return (
     <span
       role="img"
       aria-label={title}
       title={title}
-      className={`inline-block shrink-0 rounded-full border ${ring} bg-transparent`}
-      style={{ width: dim, height: dim }}
+      className={`inline-block shrink-0 rounded-full ${dotVariant(liveness)}`}
+      style={{ width: size, height: size }}
     />
   );
+}
+
+/** Variant-specific fill/ring classes per liveness bucket. */
+function dotVariant(liveness: Liveness): string {
+  switch (liveness) {
+    case 'live':
+      return 'mc-dot-live bg-live';
+    case 'idle':
+      return 'bg-waiting';
+    case 'ended':
+      // hollow ring, slightly brighter than unknown
+      return 'border border-ink-faint bg-transparent';
+    default:
+      return 'border border-unknown bg-transparent';
+  }
 }

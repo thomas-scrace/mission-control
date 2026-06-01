@@ -6,7 +6,7 @@ import { Cards } from './components/Cards';
 import { ProjectTabs, type ProjectStat } from './components/ProjectTabs';
 import { SlotGrid, type SlotEntry } from './components/SlotGrid';
 import { DetailDrawer } from './components/DetailDrawer';
-import { needsYou, sortAgents } from './lib/format';
+import { needsYou, reorderOrder, sortAgents } from './lib/format';
 
 const STALE_WINDOW_MS = 24 * 60 * 60 * 1000;
 
@@ -57,25 +57,23 @@ export function App() {
   // Drop optimistic entries once the server's record matches them.
   useEffect(() => {
     setOptimistic((prev) => {
-      const keys = Object.keys(prev);
-      if (keys.length === 0) return prev;
+      const ids = Object.keys(prev);
+      if (ids.length === 0) return prev;
       let changed = false;
       const next: Record<string, MetaBody> = {};
-      for (const id of keys) {
-        const server = agents.find((a) => a.id === id);
+      for (const id of ids) {
         const o = prev[id];
-        if (!server || !o) {
-          next[id] = o as MetaBody;
-          continue;
-        }
-        const settled = (Object.keys(o) as (keyof MetaBody)[]).every(
-          (k) => server[k as keyof AgentRecord] === o[k],
-        );
-        if (settled) {
-          changed = true;
-        } else {
-          next[id] = o;
-        }
+        if (!o) continue;
+        const server = agents.find((a) => a.id === id);
+        // Settled = the server now agrees with every overlaid field. Keep the
+        // overlay until then (and while the agent is missing from the stream).
+        const settled =
+          server != null &&
+          (Object.keys(o) as (keyof MetaBody)[]).every(
+            (k) => server[k as keyof AgentRecord] === o[k],
+          );
+        if (settled) changed = true;
+        else next[id] = o;
       }
       return changed ? next : prev;
     });
@@ -162,18 +160,20 @@ export function App() {
     return out;
   }, [projects, agentById]);
 
-  // Header counts (over non-dismissed agents in the active window).
+  // Header counts (over non-dismissed agents in the active window). Deliberately
+  // ignores the tool/live/query filters so the header reflects the whole window.
   const counts = useMemo(() => {
-    const inWindow = merged.filter(
-      (a) =>
-        !a.dismissed &&
-        (!filters.recent24h || now - a.updatedAt <= STALE_WINDOW_MS),
-    );
-    return {
-      total: inWindow.length,
-      needYou: inWindow.filter((a) => needsYou(a)).length,
-      live: inWindow.filter((a) => a.liveness === 'live').length,
-    };
+    let total = 0;
+    let needY = 0;
+    let live = 0;
+    for (const a of merged) {
+      if (a.dismissed) continue;
+      if (filters.recent24h && now - a.updatedAt > STALE_WINDOW_MS) continue;
+      total++;
+      if (needsYou(a)) needY++;
+      if (a.liveness === 'live') live++;
+    }
+    return { total, needYou: needY, live };
   }, [merged, filters.recent24h, now]);
 
   const selected = useMemo(
@@ -219,25 +219,8 @@ export function App() {
   // start/end, step out by 1000. Apply optimistically + persist.
   const handleReorder = useCallback(
     (draggedId: string, targetIndex: number) => {
-      const without = visible.filter((a) => a.id !== draggedId);
-      const clamped = Math.max(0, Math.min(targetIndex, without.length));
-      const before: AgentRecord | undefined = without[clamped - 1];
-      const after: AgentRecord | undefined = without[clamped];
-
-      let newOrder: number;
-      if (before && after) {
-        newOrder = (before.order + after.order) / 2; // midpoint between neighbours
-      } else if (after) {
-        newOrder = after.order - 1000; // dropped at the very start
-      } else if (before) {
-        newOrder = before.order + 1000; // dropped at the very end
-      } else {
-        newOrder = 0; // only card
-      }
-
-      const current = visible.find((a) => a.id === draggedId);
-      if (current && current.order === newOrder) return;
-      handleMeta(draggedId, { order: newOrder });
+      const newOrder = reorderOrder(visible, draggedId, targetIndex);
+      if (newOrder !== null) handleMeta(draggedId, { order: newOrder });
     },
     [visible, handleMeta],
   );

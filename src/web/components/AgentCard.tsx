@@ -1,9 +1,20 @@
 import { memo } from 'react';
 import type { AgentRecord } from '../../shared/types';
-import { focusAgent } from '../sse';
 import { PrChip } from './PrStatus';
-import { CardFooter, CardHeader, NeedsYouBanner, ReadyBody, SynthesizingBody } from './cardParts';
-import { briefPending, isErrorTone, livenessLabel, needsYou, titleText } from '../lib/format';
+import {
+  CARD_INTERACTIVE,
+  CARD_SHELL,
+  CardFooter,
+  CardHeader,
+  NeedsYouBanner,
+  ReadyBody,
+  SynthesizingBody,
+  cardDimClasses,
+  cardToneClass,
+  focusCardProps,
+} from './cardParts';
+import { WaitingExchange } from './WaitingExchange';
+import { briefPending, isErrorTone, livenessLabel, needsYou } from '../lib/format';
 
 type DropEdge = 'before' | 'after' | null;
 
@@ -46,36 +57,19 @@ export const AgentCard = memo(function AgentCard({
   const pending = briefPending(agent);
   const live = livenessLabel(agent, idleSec);
 
-  const ended = !wants && live.tone === 'ended';
-  const idleDim = !wants && live.tone === 'idle';
-
-  const tone = wants
-    ? error
-      ? 'border-error/45 mc-accent-l-error mc-glow-error'
-      : 'border-waiting/45 mc-accent-l-amber mc-glow-amber'
-    : 'border-hairline hover:border-accent/50';
-
   const dropCls =
     dropEdge === 'before' ? 'mc-drop-before' : dropEdge === 'after' ? 'mc-drop-after' : '';
 
+  // Cards stack vertically in a lane, so the drop edge is top/bottom.
   const edgeFromEvent = (e: React.DragEvent<HTMLElement>): 'before' | 'after' => {
     const rect = e.currentTarget.getBoundingClientRect();
-    return e.clientX < rect.left + rect.width / 2 ? 'before' : 'after';
+    return e.clientY < rect.top + rect.height / 2 ? 'before' : 'after';
   };
 
   return (
     <article
-      role="button"
-      tabIndex={0}
+      {...focusCardProps(agent)}
       aria-selected={selected}
-      aria-label={`Open ${titleText(agent)} — focus its window`}
-      onClick={() => void focusAgent(agent.id).catch(() => {})}
-      onKeyDown={(e) => {
-        if (e.key === 'Enter' || e.key === ' ') {
-          e.preventDefault();
-          void focusAgent(agent.id).catch(() => {});
-        }
-      }}
       onDragOver={(e) => {
         e.preventDefault();
         e.dataTransfer.dropEffect = 'move';
@@ -86,14 +80,10 @@ export const AgentCard = memo(function AgentCard({
         onDrop(agent.id, edgeFromEvent(e));
       }}
       className={[
-        'group relative flex flex-col gap-4 rounded-xl border bg-surface p-6',
-        'shadow-[0_1px_0_0_rgba(255,255,255,0.03)_inset,0_4px_16px_-8px_rgba(0,0,0,0.7)]',
-        'cursor-pointer outline-none transition-[border-color,background-color,opacity,box-shadow] duration-200',
-        'hover:bg-surface-2',
-        'focus-visible:ring-1 focus-visible:ring-accent/60',
-        tone,
-        ended ? 'opacity-60 saturate-[0.45]' : '',
-        idleDim && !ended ? 'opacity-[0.88]' : '',
+        CARD_SHELL,
+        CARD_INTERACTIVE,
+        cardToneClass(wants, error),
+        ...cardDimClasses(wants, live),
         selected ? 'ring-1 ring-accent/60' : '',
         dragging ? 'mc-dragging' : '',
         dropCls,
@@ -104,6 +94,9 @@ export const AgentCard = memo(function AgentCard({
       {wants && <NeedsYouBanner agent={agent} error={error} />}
 
       {pending ? <SynthesizingBody agent={agent} /> : <ReadyBody agent={agent} />}
+
+      {/* Matches the project-tab slot cards: the You/Agent exchange when it needs you. */}
+      {wants && !error && <WaitingExchange agent={agent} />}
 
       {agent.pr && <PrChip pr={agent.pr} />}
 

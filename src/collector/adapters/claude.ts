@@ -61,6 +61,14 @@ function isHumanPrompt(rec: any): boolean {
   return false;
 }
 
+/** The raw text of a human prompt, whether stored as a string or a text content-block. */
+function humanPromptText(rec: any): string | null {
+  const c = rec?.message?.content;
+  if (typeof c === 'string') return c;
+  if (Array.isArray(c)) return c.find((b: any) => b?.type === 'text')?.text ?? null;
+  return null;
+}
+
 /**
  * Derive current status from the MAIN transcript tail. The cardinal rule (from the
  * adversarial review): a session whose last assistant turn ended (end_turn) is IDLE
@@ -73,9 +81,11 @@ export function classifyClaudeStatus(records: any[]): { status: AgentStatus; sta
   let lastAssistant: any = null;
   let lastHumanPromptIdx = -1;
   let errorDetail: string | null = null;
+  let permissionMode: string | null = null;
 
   records.forEach((rec, idx) => {
     const t = rec?.type;
+    if (rec?.permissionMode) permissionMode = rec.permissionMode;
     if (t === 'assistant') {
       lastAssistantIdx = idx;
       lastAssistant = rec;
@@ -112,6 +122,19 @@ export function classifyClaudeStatus(records: any[]): { status: AgentStatus; sta
 
   // 3) a fresh human prompt arrived after the last assistant -> agent about to work
   if (lastHumanPromptIdx > lastAssistantIdx) return { status: 'busy', statusDetail: 'thinking…' };
+
+  // 3.5) PLAN MODE: a session in plan mode is never idle — it's either researching
+  // (a foreground tool is in flight -> busy) or it has presented its plan / a question
+  // and is awaiting you (-> waiting). Plan-mode AskUserQuestion/ExitPlanMode prompts are
+  // not always persisted to the transcript until answered, so we infer this from the mode.
+  if (permissionMode === 'plan') {
+    const inflight = unmatched.filter((t) => !BACKGROUND_TOOLS.has(t.name));
+    if (inflight.length) {
+      const t = inflight[inflight.length - 1]!;
+      return { status: 'busy', statusDetail: renderAction(t.name, t.target) };
+    }
+    return { status: 'waiting', statusDetail: 'Plan mode — awaiting your input' };
+  }
 
   // 4) main thread yielded -> idle, EVEN IF a background subagent is still unmatched
   if (lastStop === 'end_turn') return { status: 'idle', statusDetail: null };
@@ -200,15 +223,13 @@ export function extractClaudeFields(records: any[]): ClaudeFields {
             lastMessage = snippet(c.text, 400);
             history.push({ ts: recTs, kind: 'message', label: snippet(c.text) });
           } else if (c?.type === 'tool_use') {
-            const tg = toolTarget(c.name, c.input);
-            lastAction = renderAction(c.name, tg);
-            history.push({ ts: recTs, kind: BACKGROUND_TOOLS.has(c.name) ? 'subagent' : 'tool', label: renderAction(c.name, tg) });
+            lastAction = renderAction(c.name, toolTarget(c.name, c.input));
+            history.push({ ts: recTs, kind: BACKGROUND_TOOLS.has(c.name) ? 'subagent' : 'tool', label: lastAction });
           }
         }
       }
     } else if (t === 'user' && isHumanPrompt(rec)) {
-      const c = rec.message?.content;
-      const txt = typeof c === 'string' ? c : (Array.isArray(c) ? c.find((b: any) => b?.type === 'text')?.text ?? null : null);
+      const txt = humanPromptText(rec);
       if (txt != null) {
         if (firstUserPrompt === null) firstUserPrompt = txt;
         lastUserPrompt = snippet(txt, 400); // most recent human message (last write wins)

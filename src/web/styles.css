@@ -226,12 +226,12 @@ body::before {
   opacity: 0.4 !important;
 }
 
-/* A crisp accent drop indicator drawn on the side a card will land. */
+/* A crisp accent drop indicator drawn on the edge a card will land (lanes stack vertically). */
 .mc-drop-before {
-  box-shadow: -3px 0 0 0 var(--color-accent);
+  box-shadow: 0 -3px 0 0 var(--color-accent);
 }
 .mc-drop-after {
-  box-shadow: 3px 0 0 0 var(--color-accent);
+  box-shadow: 0 3px 0 0 var(--color-accent);
 }
 
 /* The grip handle: only this is draggable, so it never fights click-to-open. */

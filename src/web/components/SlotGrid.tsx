@@ -1,5 +1,6 @@
 import type { AgentRecord, Project, WorktreeSlot } from '../../shared/types';
 import { SlotCard } from './SlotCard';
+import { Swimlanes, Lane } from './Swimlanes';
 import { needsYou, shortPath } from '../lib/format';
 
 export interface SlotEntry {
@@ -18,21 +19,43 @@ interface Props {
 /** The per-project view: a header summary + a grid of worktree slot cards. */
 export function SlotGrid({ project, slots, selectedId, idleByAgent, onSelect }: Props) {
   if (!project) return null;
+
+  const cardFor = (e: SlotEntry) => (
+    <SlotCard
+      key={e.slot.path}
+      slot={e.slot}
+      agent={e.agent}
+      selected={e.agent != null && e.agent.id === selectedId}
+      idleSec={e.agent ? idleByAgent[e.agent.id] ?? null : null}
+      onSelect={onSelect}
+    />
+  );
+
+  // Three lanes: live agents, occupied-but-idle agents, then available (empty) slots.
+  const live = slots.filter((e) => e.agent && e.agent.liveness === 'live');
+  const idle = slots.filter((e) => e.agent && e.agent.liveness !== 'live');
+  const available = slots.filter((e) => !e.agent);
+
   return (
-    <div className="min-h-0 flex-1 overflow-y-auto">
+    <div className="flex min-h-0 flex-1 flex-col">
       <ProjectHeader project={project} slots={slots} />
-      <div className="mc-fade-in grid grid-cols-[repeat(auto-fill,minmax(380px,1fr))] gap-6 px-6 pb-8 sm:gap-7 sm:px-8">
-        {slots.map(({ slot, agent }) => (
-          <SlotCard
-            key={slot.path}
-            slot={slot}
-            agent={agent}
-            selected={agent != null && agent.id === selectedId}
-            idleSec={agent ? idleByAgent[agent.id] ?? null : null}
-            onSelect={onSelect}
-          />
-        ))}
-      </div>
+      <Swimlanes>
+        {live.length > 0 && (
+          <Lane label="Live" count={live.length} tone="live" first>
+            {live.map(cardFor)}
+          </Lane>
+        )}
+        {idle.length > 0 && (
+          <Lane label="Idle" count={idle.length} tone="idle" first={live.length === 0}>
+            {idle.map(cardFor)}
+          </Lane>
+        )}
+        {available.length > 0 && (
+          <Lane label="Available" count={available.length} tone="available" first={live.length === 0 && idle.length === 0}>
+            {available.map(cardFor)}
+          </Lane>
+        )}
+      </Swimlanes>
     </div>
   );
 }

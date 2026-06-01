@@ -101,6 +101,13 @@ export function classifyClaudeLiveness(
   const matched = findClaudeProc(agent.cwd, procs, gitTop) != null;
   const anyAlive = procs.length > 0;
 
+  // An agent blocked on YOUR input is a live, open session even though its transcript hasn't
+  // changed since it asked — don't let it decay to "idle". Require a claude process in its
+  // worktree so we never resurrect a session whose terminal was closed.
+  if (agent.status === 'waiting' && matched) {
+    return { liveness: 'live', livenessBasis: `waiting on you · claude in ${agent.worktree}` };
+  }
+
   if (recencyMs < LIVE_RECENT_MS) {
     if (matched) return { liveness: 'live', livenessBasis: `live claude in ${agent.worktree} · active ${ago} ago` };
     if (anyAlive) return { liveness: 'live', livenessBasis: `claude running · active ${ago} ago` };

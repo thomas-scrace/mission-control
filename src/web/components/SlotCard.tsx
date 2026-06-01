@@ -1,11 +1,21 @@
 import { memo } from 'react';
 import type { AgentRecord, WorktreeSlot } from '../../shared/types';
-import { focusAgent } from '../sse';
 import { SlotMeta } from './SlotMeta';
 import { WaitingExchange } from './WaitingExchange';
 import { StartAgentControl } from './StartAgentControl';
-import { CardFooter, CardHeader, NeedsYouBanner, ReadyBody, SynthesizingBody } from './cardParts';
-import { briefPending, isErrorTone, livenessLabel, needsYou, titleText } from '../lib/format';
+import {
+  CARD_INTERACTIVE,
+  CARD_SHELL,
+  CardFooter,
+  CardHeader,
+  NeedsYouBanner,
+  ReadyBody,
+  SynthesizingBody,
+  cardDimClasses,
+  cardToneClass,
+  focusCardProps,
+} from './cardParts';
+import { briefPending, isErrorTone, livenessLabel, needsYou } from '../lib/format';
 
 interface Props {
   slot: WorktreeSlot;
@@ -15,11 +25,6 @@ interface Props {
   idleSec: number | null;
   onSelect: (id: string) => void;
 }
-
-const SHELL =
-  'group relative flex flex-col gap-4 rounded-xl border bg-surface p-6 ' +
-  'shadow-[0_1px_0_0_rgba(255,255,255,0.03)_inset,0_4px_16px_-8px_rgba(0,0,0,0.7)] ' +
-  'outline-none transition-[border-color,background-color,opacity,box-shadow] duration-200';
 
 /**
  * One worktree "slot" — occupied by an agent or empty/available. Occupied slots
@@ -33,36 +38,17 @@ export const SlotCard = memo(function SlotCard({ slot, agent, selected, idleSec,
   const error = isErrorTone(agent);
   const pending = briefPending(agent);
   const live = livenessLabel(agent, idleSec);
-  const ended = !wants && live.tone === 'ended';
-  const idleDim = !wants && live.tone === 'idle';
-
-  const tone = wants
-    ? error
-      ? 'border-error/45 mc-accent-l-error mc-glow-error'
-      : 'border-waiting/45 mc-accent-l-amber mc-glow-amber'
-    : slot.isPrimary
-      ? 'border-hairline-bright hover:border-accent/50'
-      : 'border-hairline hover:border-accent/50';
+  const restingBorder = slot.isPrimary ? 'border-hairline-bright' : 'border-hairline';
 
   return (
     <article
-      role="button"
-      tabIndex={0}
+      {...focusCardProps(agent)}
       aria-selected={selected}
-      aria-label={`Open ${titleText(agent)} — focus its window`}
-      onClick={() => void focusAgent(agent.id).catch(() => {})}
-      onKeyDown={(e) => {
-        if (e.key === 'Enter' || e.key === ' ') {
-          e.preventDefault();
-          void focusAgent(agent.id).catch(() => {});
-        }
-      }}
       className={[
-        SHELL,
-        'cursor-pointer hover:bg-surface-2 focus-visible:ring-1 focus-visible:ring-accent/60',
-        tone,
-        ended ? 'opacity-60 saturate-[0.45]' : '',
-        idleDim && !ended ? 'opacity-[0.88]' : '',
+        CARD_SHELL,
+        CARD_INTERACTIVE,
+        cardToneClass(wants, error, restingBorder),
+        ...cardDimClasses(wants, live),
         selected ? 'ring-1 ring-accent/60' : '',
       ].join(' ')}
     >
@@ -90,7 +76,7 @@ function EmptySlotCard({ slot }: { slot: WorktreeSlot }) {
   return (
     <article
       className={[
-        SHELL,
+        CARD_SHELL,
         'border-dashed',
         slot.isPrimary ? 'border-hairline-bright' : 'border-hairline',
         'bg-surface/40',

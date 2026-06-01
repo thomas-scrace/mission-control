@@ -2,6 +2,7 @@ import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
 import { MC_DIR, PR_ENABLED, PR_TTL_MS, PR_TTL_LIVE_MS, PR_TTL_HOT_MS, PR_CONCURRENCY, SYNTH_FRESH_MS } from '../shared/config';
 import type { AgentRecord, AgentBrief, CiStatus, Liveness, PullRequest } from '../shared/types';
+import { commonDir } from './git';
 
 const execFileAsync = promisify(execFile);
 
@@ -20,7 +21,11 @@ function rollupToCi(roll: any[]): { ci: CiStatus; failing: number } {
     if (FAIL_CONCLUSIONS.has(concl) || state === 'FAILURE' || state === 'ERROR') failing++;
     else if (PENDING_STATES.has(state) || (!concl && state && state !== 'COMPLETED')) pending++;
   }
-  const ci: CiStatus = roll.length === 0 ? 'none' : failing > 0 ? 'failing' : pending > 0 ? 'pending' : 'passing';
+  let ci: CiStatus;
+  if (roll.length === 0) ci = 'none';
+  else if (failing > 0) ci = 'failing';
+  else if (pending > 0) ci = 'pending';
+  else ci = 'passing';
   return { ci, failing };
 }
 
@@ -101,13 +106,20 @@ export interface PrTarget {
   id: string; // the key passed back to `apply` (an agent id, or a synthetic slot key)
   cwd: string; // a path inside the worktree to run `gh` from
   branch: string | null;
-  worktree: string; // basename label; the cache is keyed `worktree|branch`
+  worktree: string; // basename label (fallback cache discriminator)
+  repo?: string; // repo-unique discriminator (git common-dir) — keys the cache, so two repos
+  // with the same worktree basename + branch don't collide. Falls back to `worktree`.
   liveness: Liveness;
   updatedAt: number;
   pr?: PullRequest | null; // current value, to avoid a redundant apply
   lastAction?: string | null;
   statusDetail?: string | null;
   brief?: AgentBrief | null;
+}
+
+/** The shared cache key — repo-discriminated so identically-named worktrees across repos don't collide. */
+function prCacheKey(repo: string, branch: string): string {
+  return `${repo}|${branch}`;
 }
 
 /** How fresh the PR status must be, by how actively the target is touching it. */
@@ -128,7 +140,7 @@ export function considerPrFor(t: PrTarget, apply: ApplyPr): void {
   const fresh = t.liveness === 'live' || Date.now() - t.updatedAt < SYNTH_FRESH_MS;
   if (!fresh) return;
 
-  const key = `${t.worktree}|${branch}`;
+  const key = prCacheKey(t.repo ?? t.worktree, branch);
   const cached = cache.get(key);
   if (cached && Date.now() - cached.at < pollTtl(t)) {
     if (!samePr(t.pr ?? null, cached.pr)) apply(t.id, cached.pr);
@@ -141,6 +153,7 @@ export function considerPrFor(t: PrTarget, apply: ApplyPr): void {
     try {
       const pr = await fetchPr(t.cwd, branch);
       cache.set(key, { at: Date.now(), pr });
+      if (cache.size > 2000) cache.delete(cache.keys().next().value!);
       apply(t.id, pr);
     } finally {
       inflight.delete(key);
@@ -148,13 +161,14 @@ export function considerPrFor(t: PrTarget, apply: ApplyPr): void {
   });
 }
 
-/** An AgentRecord is a structural superset of PrTarget. */
-export function considerPr(agent: AgentRecord, apply: ApplyPr): void {
-  considerPrFor(agent, apply);
+/** An AgentRecord is a structural superset of PrTarget; add its repo (common-dir) for the key. */
+export async function considerPr(agent: AgentRecord, apply: ApplyPr): Promise<void> {
+  const repo = (await commonDir(agent.cwd)) ?? agent.worktree;
+  considerPrFor({ ...agent, repo }, apply);
 }
 
-/** Read the last-fetched PR for a worktree+branch from the shared cache (no fetch). */
-export function getCachedPr(worktree: string, branch: string | null): PullRequest | null {
+/** Read the last-fetched PR for a repo+branch from the shared cache (no fetch). */
+export function getCachedPr(repo: string, branch: string | null): PullRequest | null {
   if (!branch || BASE_BRANCHES.has(branch)) return null;
-  return cache.get(`${worktree}|${branch}`)?.pr ?? null;
+  return cache.get(prCacheKey(repo, branch))?.pr ?? null;
 }

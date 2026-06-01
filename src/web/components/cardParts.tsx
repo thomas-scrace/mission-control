@@ -2,6 +2,7 @@ import type { AgentRecord } from '../../shared/types';
 import { LivenessDot } from './LivenessDot';
 import { PhaseStepper } from './PhaseStepper';
 import { ToolMark } from './LogoIcons';
+import { focusAgent } from '../sse';
 import {
   clean,
   fallbackLine,
@@ -17,6 +18,57 @@ import {
  * data fetching — so either composer can arrange them. Keeping them here means the
  * occupied-slot card and the flat card never drift apart.
  */
+
+/* ── Shared card shell ─────────────────────────────────────────────────────
+ * The two occupied-card composers (AgentCard, SlotCard) share the same shell:
+ * same base classes, same tone/dim logic, same click-to-focus behaviour. These
+ * helpers are the single source of truth so the cards never drift visually. */
+
+/** Base shell classes (layout + surface + shadow + transition) common to every card. */
+export const CARD_SHELL =
+  'group relative flex flex-col gap-4 rounded-xl border bg-surface p-6 ' +
+  'shadow-[0_1px_0_0_rgba(255,255,255,0.03)_inset,0_4px_16px_-8px_rgba(0,0,0,0.7)] ' +
+  'outline-none transition-[border-color,background-color,opacity,box-shadow] duration-200';
+
+/** Classes for an interactive (click-to-focus) occupied card. */
+export const CARD_INTERACTIVE =
+  'cursor-pointer hover:bg-surface-2 focus-visible:ring-1 focus-visible:ring-accent/60';
+
+/** Border/glow treatment for an occupied card given its needs-you/error state. */
+export function cardToneClass(
+  wants: boolean,
+  error: boolean,
+  restingBorder = 'border-hairline',
+): string {
+  if (!wants) return `${restingBorder} hover:border-accent/50`;
+  return error
+    ? 'border-error/45 mc-accent-l-error mc-glow-error'
+    : 'border-waiting/45 mc-accent-l-amber mc-glow-amber';
+}
+
+/** Opacity/saturation dimming for ended or idle (non-needs-you) cards. */
+export function cardDimClasses(wants: boolean, live: LivenessLabel): string[] {
+  const ended = !wants && live.tone === 'ended';
+  const idleDim = !wants && live.tone === 'idle';
+  return [ended ? 'opacity-60 saturate-[0.45]' : '', idleDim && !ended ? 'opacity-[0.88]' : ''];
+}
+
+/** Shared props that make a card click/Enter/Space focus the real agent window. */
+export function focusCardProps(agent: AgentRecord) {
+  const open = () => void focusAgent(agent.id).catch(() => {});
+  return {
+    role: 'button' as const,
+    tabIndex: 0,
+    'aria-label': `Open ${titleText(agent)} — focus its window`,
+    onClick: open,
+    onKeyDown: (e: React.KeyboardEvent) => {
+      if (e.key === 'Enter' || e.key === ' ') {
+        e.preventDefault();
+        open();
+      }
+    },
+  };
+}
 
 /* ── Header (barely-there metadata) ────────────────────────────────────── */
 
@@ -201,7 +253,7 @@ export function CardFooter({ live }: { live: LivenessLabel }) {
   );
 }
 
-export function LivenessLabelPill({ live }: { live: LivenessLabel }) {
+function LivenessLabelPill({ live }: { live: LivenessLabel }) {
   if (live.tone === 'live') {
     return (
       <span className="inline-flex items-center gap-1.5 rounded-full border border-live/40 bg-live/10 px-2 py-0.5 text-[10.5px] font-semibold text-live">

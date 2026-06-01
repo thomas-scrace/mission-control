@@ -189,14 +189,15 @@ export async function buildProjects(now = Date.now()): Promise<Project[]> {
         ? { dirty: null, ahead: null, behind: null, exists: true }
         : await slotGit(raw.path, live ? 0 : undefined);
 
-      // Occupied slots read the winner's PR; empty/occupied both fall back to the shared cache.
-      const pr = winner?.pr ?? getCachedPr(wtName, raw.branch);
+      // Occupied slots read the winner's PR; empty/occupied both fall back to the shared cache
+      // (keyed by the project id = git common-dir, so identically-named worktrees don't collide).
+      const pr = winner?.pr ?? getCachedPr(id, raw.branch);
 
       // Keep an empty, non-base slot's PR warm — but only for the active project or one with a
       // live agent, so dormant worktrees don't trigger `gh` storms.
       if (!winner && raw.branch && (id === activeProjectId || hasLiveAgent)) {
         considerPrFor(
-          { id: `${id}|${raw.path}`, cwd: raw.path, branch: raw.branch, worktree: wtName, liveness: 'ended', updatedAt: now, pr },
+          { id: `${id}|${raw.path}`, cwd: raw.path, branch: raw.branch, worktree: wtName, repo: id, liveness: 'ended', updatedAt: now, pr },
           () => {}, // result lands in the shared cache; picked up on the next rebuild
         );
       }

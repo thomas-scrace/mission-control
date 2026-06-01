@@ -3,7 +3,7 @@ import type { CiStatus, PullRequest } from '../../shared/types';
 /* ── CI icons (inline SVGs, matched to the existing icon style) ─────────── */
 
 /** Small green check — CI passing. */
-export function CiCheckIcon() {
+function CiCheckIcon() {
   return (
     <svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden>
       <path d="M3.5 8.5 6.5 11.5 12.5 5" strokeLinecap="round" strokeLinejoin="round" />
@@ -12,7 +12,7 @@ export function CiCheckIcon() {
 }
 
 /** Small red cross — CI failing. */
-export function CiCrossIcon() {
+function CiCrossIcon() {
   return (
     <svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden>
       <path d="M4.5 4.5 11.5 11.5M11.5 4.5 4.5 11.5" strokeLinecap="round" />
@@ -21,7 +21,7 @@ export function CiCrossIcon() {
 }
 
 /** Small dot — CI pending (gets a gentle pulse, reduced-motion-aware). */
-export function CiPendingIcon() {
+function CiPendingIcon() {
   return (
     <span
       className="mc-busy-pulse inline-block h-[7px] w-[7px] shrink-0 rounded-full bg-current"
@@ -82,18 +82,19 @@ export function CiIndicator({
 
 /* ── Conditional warning tags (only render when their condition is true) ── */
 
-export function Tag({ tone, children, title }: { tone: 'error' | 'amber' | 'violet' | 'muted'; children: React.ReactNode; title?: string }) {
-  const cls =
-    tone === 'error'
-      ? 'border-error/40 bg-error/10 text-error'
-      : tone === 'amber'
-        ? 'border-waiting/40 bg-waiting/10 text-waiting'
-        : tone === 'violet'
-          ? 'border-violet-400/30 bg-violet-400/10 text-violet-300'
-          : 'border-hairline bg-surface-2 text-ink-faint';
+type TagTone = 'error' | 'amber' | 'violet' | 'muted';
+
+const TAG_TONE_CLASS: Record<TagTone, string> = {
+  error: 'border-error/40 bg-error/10 text-error',
+  amber: 'border-waiting/40 bg-waiting/10 text-waiting',
+  violet: 'border-violet-400/30 bg-violet-400/10 text-violet-300',
+  muted: 'border-hairline bg-surface-2 text-ink-faint',
+};
+
+export function Tag({ tone, children, title }: { tone: TagTone; children: React.ReactNode; title?: string }) {
   return (
     <span
-      className={`inline-flex items-center rounded border px-1.5 py-px text-[10px] font-medium leading-none tracking-wide ${cls}`}
+      className={`inline-flex items-center rounded border px-1.5 py-px text-[10px] font-medium leading-none tracking-wide ${TAG_TONE_CLASS[tone]}`}
       title={title}
     >
       {children}

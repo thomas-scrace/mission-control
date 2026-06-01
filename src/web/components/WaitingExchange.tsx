@@ -2,15 +2,14 @@ import type { AgentRecord } from '../../shared/types';
 import { clean, needsReason } from '../lib/format';
 
 /**
- * The two-line exchange shown when an occupied slot is WAITING on you:
+ * The two-line exchange shown when a card is WAITING on you (needs-you):
  *  - "You:"   the last thing you typed (the raw last user prompt, or the brief's lastAsk).
- *  - "Agent:" what it's asking / reporting (the brief's needsReason, else its last prose).
- * So you can re-acquire the conversation without opening the agent.
+ *  - "Agent:" what it's asking / reporting (its last prose, else the synthesized reason).
+ * So you can re-acquire the conversation without opening the agent. Used by both the
+ * All-tab card and the per-project slot card.
  */
 export function WaitingExchange({ agent }: { agent: AgentRecord }) {
   const you = clean(agent.lastUserPrompt) ?? clean(agent.brief?.lastAsk ?? null);
-  // Prefer the agent's actual last words (distinct from the needs-you banner's
-  // synthesized reason); fall back to that reason, then the status detail.
   const them =
     clean(agent.lastMessage) ??
     clean(agent.brief?.needsReason ?? null) ??
