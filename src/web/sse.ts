@@ -197,8 +197,12 @@ export async function focusAgent(id: string): Promise<{ ok: boolean; detail: str
 }
 
 /** Start a new agent in an empty worktree slot (Claude = real launch; Codex = open app + copy path). */
-export async function launchAgent(worktreePath: string, tool: Tool): Promise<{ ok: boolean; detail: string }> {
-  const res = await postJson('/api/launch', { worktreePath, tool });
+export async function launchAgent(
+  worktreePath: string,
+  tool: Tool,
+  opts: { skipPermissions?: boolean } = {},
+): Promise<{ ok: boolean; detail: string }> {
+  const res = await postJson('/api/launch', { worktreePath, tool, skipPermissions: opts.skipPermissions });
   if (!res.ok) {
     const body = (await res.json().catch(() => null)) as { detail?: string } | null;
     return { ok: false, detail: body?.detail ?? `launch ${res.status}` };

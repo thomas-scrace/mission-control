@@ -50,10 +50,11 @@ function shQuote(s: string): string {
   return `'${s.replace(/'/g, `'\\''`)}'`;
 }
 
-async function launchClaude(worktree: string): Promise<LaunchResult> {
+async function launchClaude(worktree: string, skipPermissions: boolean): Promise<LaunchResult> {
   // Two layers of escaping: a single-quoted shell path, embedded in a double-quoted
   // AppleScript string (escape backslashes first, then double-quotes).
-  const cmd = `cd ${shQuote(worktree)} && claude`;
+  const flags = skipPermissions ? ' --dangerously-skip-permissions' : '';
+  const cmd = `cd ${shQuote(worktree)} && claude${flags}`;
   const inner = cmd.replace(/\\/g, '\\\\').replace(/"/g, '\\"');
   const script = `tell application "iTerm2"
   activate
@@ -97,9 +98,13 @@ async function launchCodex(worktree: string): Promise<LaunchResult> {
   return { ok: true, detail: 'Opened Codex — worktree path copied to clipboard' };
 }
 
-export async function launchAgent(worktreePath: string, tool: Tool): Promise<LaunchResult> {
+export async function launchAgent(
+  worktreePath: string,
+  tool: Tool,
+  opts: { skipPermissions?: boolean } = {},
+): Promise<LaunchResult> {
   if (tool !== 'claude' && tool !== 'codex') return { ok: false, detail: 'Unknown tool' };
   const real = await isAllowedWorktree(worktreePath);
   if (!real) return { ok: false, detail: 'Path is not a known worktree under your home directory' };
-  return tool === 'claude' ? launchClaude(real) : launchCodex(real);
+  return tool === 'claude' ? launchClaude(real, !!opts.skipPermissions) : launchCodex(real);
 }

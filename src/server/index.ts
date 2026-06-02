@@ -134,13 +134,13 @@ async function main(): Promise<void> {
   // Start a new agent in an empty worktree slot. Claude = real launch (new iTerm tab);
   // Codex = raise the app + copy the path (no launch-with-cwd API). Path is allowlisted
   // to enumerated worktrees under HOME inside launchAgent.
-  app.post<{ Body: { worktreePath?: string; tool?: string } }>('/api/launch', async (req, reply) => {
+  app.post<{ Body: { worktreePath?: string; tool?: string; skipPermissions?: boolean } }>('/api/launch', async (req, reply) => {
     if (!sameOrigin(req)) return reply.code(403).send({ ok: false, detail: 'forbidden origin' });
-    const { worktreePath, tool } = req.body ?? {};
+    const { worktreePath, tool, skipPermissions } = req.body ?? {};
     if (typeof worktreePath !== 'string' || (tool !== 'claude' && tool !== 'codex')) {
       return reply.code(400).send({ ok: false, detail: 'worktreePath and tool (claude|codex) required' });
     }
-    return launchAgent(worktreePath, tool as Tool);
+    return launchAgent(worktreePath, tool as Tool, { skipPermissions: !!skipPermissions });
   });
 
   // Manually add a project tab by repo path (so empty repos can appear too).
