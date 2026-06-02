@@ -22,11 +22,19 @@ describe('agentLane', () => {
     expect(agentLane({ status: 'unknown', liveness: 'unknown' })).toBe('inactive');
   });
 
-  it('mechanically busy but the brief flags needsYou -> needs-me (e.g. a plan-mode question)', () => {
+  it('busy + quiet but the brief flags needsYou -> needs-me (e.g. a plan-mode question)', () => {
     expect(agentLane({ status: 'busy', liveness: 'idle', brief: { needsYou: true } as any })).toBe('needs-me');
   });
 
   it('busy with a non-needs-you brief stays running', () => {
     expect(agentLane({ status: 'busy', liveness: 'live', brief: { needsYou: false } as any })).toBe('running');
+  });
+
+  it('actively producing (busy + live) beats a STALE needs-you brief -> running', () => {
+    expect(agentLane({ status: 'busy', liveness: 'live', brief: { needsYou: true } as any })).toBe('running');
+  });
+
+  it('a running background subagent keeps it Running even if the main thread is idle', () => {
+    expect(agentLane({ status: 'idle', liveness: 'idle', subagentsActive: 1 })).toBe('running');
   });
 });

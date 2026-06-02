@@ -6,7 +6,7 @@ import { Cards } from './components/Cards';
 import { ProjectTabs, type ProjectStat } from './components/ProjectTabs';
 import { SlotGrid, type SlotEntry } from './components/SlotGrid';
 import { DetailDrawer } from './components/DetailDrawer';
-import { baseName, needsYou, sortAgents } from './lib/format';
+import { agentLane, baseName, needsYou, sortAgents } from './lib/format';
 
 const STALE_WINDOW_MS = 24 * 60 * 60 * 1000;
 
@@ -151,14 +151,20 @@ export function App() {
       let needsMe = 0;
       let available = 0;
       for (const slot of p.slots) {
-        if (!slot.agent) available++;
-        else if (!slot.agent.needsYou && slot.agent.status === 'busy') running++;
+        if (!slot.agent) {
+          available++;
+          continue;
+        }
+        const a = agentById.get(slot.agent.id);
+        if (a?.blocked) continue; // shown in the Blocked lane, not these buckets
+        const lane = a ? agentLane(a) : slot.agent.needsYou || slot.agent.status !== 'busy' ? 'needs-me' : 'running';
+        if (lane === 'running') running++;
         else needsMe++;
       }
       out[p.id] = { running, needsMe, available };
     }
     return out;
-  }, [projects]);
+  }, [projects, agentById]);
 
   // Header counts (over non-dismissed agents in the active window). Deliberately
   // ignores the tool/live/query filters so the header reflects the whole window.

@@ -9,11 +9,21 @@ import { PHASES } from '../../shared/types';
  */
 export type AgentLane = 'running' | 'needs-me' | 'inactive';
 
-export function agentLane(a: { status: AgentStatus; liveness: Liveness; brief?: AgentBrief | null }): AgentLane {
+export function agentLane(a: {
+  status: AgentStatus;
+  liveness: Liveness;
+  brief?: AgentBrief | null;
+  subagentsActive?: number | null;
+}): AgentLane {
   if (a.liveness === 'ended' || a.liveness === 'unknown') return 'inactive'; // no/uncertain process
-  // Blocked on you wins over a mechanically-"busy" status — the synthesized brief reads the full
-  // context (e.g. a plan presented for approval / an AskUserQuestion that isn't in the transcript yet).
+  // Actively executing work → Running. Either the main thread is producing output right now
+  // (busy + live), or a background subagent (e.g. the code-simplifier) is still running. This
+  // beats a stale brief that hasn't caught up since the agent resumed.
+  if ((a.status === 'busy' && a.liveness === 'live') || (a.subagentsActive ?? 0) > 0) return 'running';
+  // Blocked on you → Needs me. The synthesized brief reads the full context (e.g. a plan presented
+  // for approval / an AskUserQuestion that isn't written to the transcript until you answer it).
   if (a.brief?.needsYou || a.status === 'waiting' || a.status === 'error') return 'needs-me';
+  // Busy but quiet (e.g. a long-running tool) → still running; otherwise it has returned → Needs me.
   return a.status === 'busy' ? 'running' : 'needs-me';
 }
 
