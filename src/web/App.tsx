@@ -6,7 +6,7 @@ import { Cards } from './components/Cards';
 import { ProjectTabs, type ProjectStat } from './components/ProjectTabs';
 import { SlotGrid, type SlotEntry } from './components/SlotGrid';
 import { DetailDrawer } from './components/DetailDrawer';
-import { baseName, needsYou, reorderOrder, sortAgents } from './lib/format';
+import { baseName, needsYou, sortAgents } from './lib/format';
 
 const STALE_WINDOW_MS = 24 * 60 * 60 * 1000;
 
@@ -21,6 +21,7 @@ type MetaBody = {
   pinned?: boolean;
   jobName?: string | null;
   dismissed?: boolean;
+  blocked?: boolean;
   notes?: string | null;
   order?: number;
 };
@@ -212,16 +213,10 @@ export function App() {
     });
   }, []);
 
-  // Reorder via drag: drop `draggedId` at slot `targetIndex` within the visible
-  // list. Compute a new `order` as the midpoint between the new neighbours'
-  // orders (orders are large floats, so midpoints never collide); at the very
-  // start/end, step out by 1000. Apply optimistically + persist.
-  const handleReorder = useCallback(
-    (draggedId: string, targetIndex: number) => {
-      const newOrder = reorderOrder(visible, draggedId, targetIndex);
-      if (newOrder !== null) handleMeta(draggedId, { order: newOrder });
-    },
-    [visible, handleMeta],
+  // Manually park / un-park a card in the Blocked lane (drag-to-lane). Persisted.
+  const handleBlock = useCallback(
+    (id: string, blocked: boolean) => handleMeta(id, { blocked }),
+    [handleMeta],
   );
 
   const handleChangeFilters = useCallback((next: Partial<Filters>) => {
@@ -266,7 +261,7 @@ export function App() {
             loading={loading}
             filteredEmpty={filteredEmpty}
             onSelect={setSelectedId}
-            onReorder={handleReorder}
+            onBlock={handleBlock}
             onClearFilters={handleClearFilters}
           />
         ) : (
@@ -275,6 +270,7 @@ export function App() {
             slots={projectSlots}
             selectedId={selectedId}
             onSelect={setSelectedId}
+            onBlock={handleBlock}
           />
         )}
       </main>

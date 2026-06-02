@@ -47,7 +47,7 @@ export const SlotCard = memo(function SlotCard({ slot, agent, label, labelTitle,
       aria-selected={selected}
       className={[CARD_SHELL, CARD_INTERACTIVE, cardToneClass(wants, isErrorTone(agent), restingBorder), selected ? 'ring-1 ring-accent/60' : ''].join(' ')}
     >
-      <MetaRow label={label} labelTitle={labelTitle} branch={slot.branch} dirty={slot.dirty} tool={agent.tool} />
+      <MetaRow label={label} labelTitle={labelTitle} branch={slot.branch} dirty={slot.dirty} tool={agent.tool} dragId={agent.id} />
 
       {pending ? <SynthesizingBody agent={agent} /> : <CardTitle agent={agent} />}
 

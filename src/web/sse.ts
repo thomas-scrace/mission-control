@@ -179,6 +179,7 @@ export async function updateMeta(
     pinned?: boolean;
     jobName?: string | null;
     dismissed?: boolean;
+    blocked?: boolean;
     notes?: string | null;
     order?: number;
   },
@@ -256,6 +257,7 @@ function makeMockData(): { seed: AgentRecord[]; projects: Project[]; serverTime:
     pinned: false,
     jobName: null,
     dismissed: false,
+    blocked: false,
     notes: null,
     order: 0,
     ...over,

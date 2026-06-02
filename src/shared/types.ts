@@ -138,6 +138,7 @@ export interface AgentRecord {
   pinned: boolean;
   jobName: string | null; // user override for `job`
   dismissed: boolean;
+  blocked: boolean; // user manually parked this in the "Blocked" lane (waiting on you, can't advance)
   notes: string | null;
   order: number; // stable display position (ascending); user-draggable, persisted
 }
@@ -208,6 +209,7 @@ export interface AgentMeta {
   pinned: boolean;
   jobName: string | null;
   dismissed: boolean;
+  blocked: boolean;
   notes: string | null;
   order: number | null;
 }

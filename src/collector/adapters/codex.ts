@@ -213,6 +213,7 @@ export function buildCodexAgent(thread: CodexThread, records: any[], mtimeMs: nu
     pinned: false,
     jobName: null,
     dismissed: false,
+    blocked: false,
     notes: null,
     order: 0,
   };

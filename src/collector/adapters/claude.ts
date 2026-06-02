@@ -304,6 +304,7 @@ export function buildClaudeAgent(file: string, records: any[], mtimeMs: number):
     pinned: false,
     jobName: null,
     dismissed: false,
+    blocked: false,
     notes: null,
     order: 0,
   };

@@ -16,10 +16,12 @@ interface Props {
   slots: SlotEntry[];
   selectedId: string | null;
   onSelect: (id: string) => void;
+  /** Manually (un)block a card by dragging it to/from the Blocked lane. */
+  onBlock: (id: string, blocked: boolean) => void;
 }
 
 /** The per-project view: a header summary + a grid of worktree slot cards. */
-export function SlotGrid({ project, slots, selectedId, onSelect }: Props) {
+export function SlotGrid({ project, slots, selectedId, onSelect, onBlock }: Props) {
   if (!project) return null;
 
   const cardFor = (e: SlotEntry) => (
@@ -34,27 +36,32 @@ export function SlotGrid({ project, slots, selectedId, onSelect }: Props) {
     />
   );
 
-  // Three lanes: Running (working), Needs me (alive but yielded), Available (no process).
-  const running = slots.filter((e) => e.agent && e.agent.status === 'busy');
-  const needsMe = slots.filter((e) => e.agent && e.agent.status !== 'busy');
-  const available = slots.filter((e) => !e.agent);
+  // Manually-blocked first; the rest split into Running / Needs me / Available.
+  const blocked = slots.filter((e) => e.agent?.blocked);
+  const rest = slots.filter((e) => !e.agent?.blocked);
+  const running = rest.filter((e) => e.agent && e.agent.status === 'busy');
+  const needsMe = rest.filter((e) => e.agent && e.agent.status !== 'busy');
+  const available = rest.filter((e) => !e.agent);
 
   return (
     <div className="flex min-h-0 flex-1 flex-col">
       <ProjectHeader project={project} slots={slots} />
       <Swimlanes>
+        <Lane label="Blocked" count={blocked.length} tone="blocked" first onDropCard={(id) => onBlock(id, true)} emptyHint="Drag a card here to park it as blocked.">
+          {blocked.map(cardFor)}
+        </Lane>
         {running.length > 0 && (
-          <Lane label="Running" count={running.length} tone="running" first>
+          <Lane label="Running" count={running.length} tone="running" onDropCard={(id) => onBlock(id, false)}>
             {running.map(cardFor)}
           </Lane>
         )}
         {needsMe.length > 0 && (
-          <Lane label="Needs me" count={needsMe.length} tone="needs" first={running.length === 0}>
+          <Lane label="Needs me" count={needsMe.length} tone="needs" onDropCard={(id) => onBlock(id, false)}>
             {needsMe.map(cardFor)}
           </Lane>
         )}
         {available.length > 0 && (
-          <Lane label="Available" count={available.length} tone="available" first={running.length === 0 && needsMe.length === 0}>
+          <Lane label="Available" count={available.length} tone="available" onDropCard={(id) => onBlock(id, false)}>
             {available.map(cardFor)}
           </Lane>
         )}

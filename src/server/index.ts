@@ -112,12 +112,13 @@ async function main(): Promise<void> {
       pinned: b.pinned as boolean | undefined,
       jobName: b.jobName as string | null | undefined,
       dismissed: b.dismissed as boolean | undefined,
+      blocked: b.blocked as boolean | undefined,
       notes: b.notes as string | null | undefined,
       order: b.order as number | undefined,
     });
     const agent = store.get(id);
     if (!agent) return reply.code(404).send({ error: 'agent not found' });
-    const updated = { ...agent, pinned: m.pinned, jobName: m.jobName, dismissed: m.dismissed, notes: m.notes, order: m.order ?? agent.order };
+    const updated = { ...agent, pinned: m.pinned, jobName: m.jobName, dismissed: m.dismissed, blocked: m.blocked, notes: m.notes, order: m.order ?? agent.order };
     store.upsert(updated);
     return updated;
   });

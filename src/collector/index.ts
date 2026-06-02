@@ -50,6 +50,7 @@ async function enrich(agent: AgentRecord, now = Date.now()): Promise<AgentRecord
   agent.pinned = meta.pinned;
   agent.jobName = meta.jobName;
   agent.dismissed = meta.dismissed;
+  agent.blocked = meta.blocked;
   agent.notes = meta.notes;
   // Stable display order: assigned once on first sight (newer-first), frozen thereafter so cards
   // never reshuffle on their own. The user can drag to override (persisted).
@@ -240,7 +241,7 @@ function placeholder(id: string, tool: 'claude' | 'codex', file: string, mtimeMs
     status: 'unknown', statusDetail: null, liveness: 'unknown', livenessBasis: 'could not parse transcript',
     lastAction: null, lastMessage: null, lastUserPrompt: null, history: [], tokens: null, contextWindow: null, model: null,
     subagentsActive: null, idleSec: null, startedAt: null, updatedAt: mtimeMs, prLink: null, permissionMode: null,
-    brief: null, pr: null, sourceFile: file, rawTail, pinned: false, jobName: null, dismissed: false, notes: null, order: 0,
+    brief: null, pr: null, sourceFile: file, rawTail, pinned: false, jobName: null, dismissed: false, blocked: false, notes: null, order: 0,
   };
 }
 

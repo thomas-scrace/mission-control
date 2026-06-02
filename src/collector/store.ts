@@ -35,7 +35,7 @@ class AgentStore extends EventEmitter {
 // would push an update (and a card flash) every 2.5s. The liveness enum still pushes.
 const UI_FIELDS: (keyof AgentRecord)[] = [
   'status', 'statusDetail', 'liveness', 'job', 'jobName', 'branch', 'worktree',
-  'lastAction', 'lastMessage', 'tokens', 'model', 'subagentsActive', 'pinned', 'dismissed', 'notes', 'prLink', 'runtime', 'order',
+  'lastAction', 'lastMessage', 'tokens', 'model', 'subagentsActive', 'pinned', 'dismissed', 'blocked', 'notes', 'prLink', 'runtime', 'order',
 ];
 
 function shallowEqualForUi(a: AgentRecord, b: AgentRecord): boolean {

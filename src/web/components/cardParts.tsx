@@ -1,4 +1,3 @@
-import type { ReactNode } from 'react';
 import type { AgentBrief, AgentRecord, Tool } from '../../shared/types';
 import { ToolMark } from './LogoIcons';
 import { focusAgent } from '../sse';
@@ -59,19 +58,20 @@ export function MetaRow({
   branch,
   dirty,
   tool,
-  grip,
+  dragId,
 }: {
   label: string;
   labelTitle?: string;
   branch: string | null;
   dirty: boolean | null;
   tool?: Tool;
-  grip?: ReactNode;
+  /** When set, a drag handle that lets you drag this card to a lane (e.g. Blocked). */
+  dragId?: string;
 }) {
   return (
     <div className="flex flex-col gap-1.5">
       <div className="flex items-center gap-2 text-[12.5px]">
-        {grip}
+        {dragId && <DragHandle id={dragId} />}
         <span className="font-medium text-ink-dim" title={labelTitle}>
           {label}
         </span>
@@ -221,6 +221,25 @@ function HollowDot() {
     <svg width="11" height="11" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" aria-hidden>
       <circle cx="8" cy="8" r="5" />
     </svg>
+  );
+}
+
+function DragHandle({ id }: { id: string }) {
+  return (
+    <span
+      className="mc-grip -ml-1 shrink-0 rounded p-0.5 text-ink-faint transition-colors hover:text-ink-dim"
+      draggable
+      title="Drag to a lane (e.g. Blocked)"
+      aria-label="Drag to a lane"
+      onClick={(e) => e.stopPropagation()}
+      onDragStart={(e) => {
+        e.stopPropagation();
+        e.dataTransfer.effectAllowed = 'move';
+        e.dataTransfer.setData('text/plain', id);
+      }}
+    >
+      <GripIcon />
+    </span>
   );
 }
 

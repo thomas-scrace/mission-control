@@ -25,6 +25,12 @@ export function initMeta(): void {
   } catch {
     // column already exists
   }
+  // Migration: add the manual "Blocked" flag.
+  try {
+    db.exec('ALTER TABLE agent_meta ADD COLUMN blocked INTEGER NOT NULL DEFAULT 0');
+  } catch {
+    // column already exists
+  }
   db.exec(`
     CREATE TABLE IF NOT EXISTS agent_brief (
       id   TEXT PRIMARY KEY,
@@ -113,12 +119,13 @@ function rowToMeta(row: any): AgentMeta {
     pinned: !!row.pinned,
     jobName: row.jobName ?? null,
     dismissed: !!row.dismissed,
+    blocked: !!row.blocked,
     notes: row.notes ?? null,
     order: row.sortOrder ?? null,
   };
 }
 
-const EMPTY = (id: string): AgentMeta => ({ id, pinned: false, jobName: null, dismissed: false, notes: null, order: null });
+const EMPTY = (id: string): AgentMeta => ({ id, pinned: false, jobName: null, dismissed: false, blocked: false, notes: null, order: null });
 
 export function getMeta(id: string): AgentMeta {
   if (!db) return EMPTY(id);
@@ -133,7 +140,7 @@ export function getAllMeta(): Map<string, AgentMeta> {
   return out;
 }
 
-export type MetaPatch = Partial<Pick<AgentMeta, 'pinned' | 'jobName' | 'dismissed' | 'notes' | 'order'>>;
+export type MetaPatch = Partial<Pick<AgentMeta, 'pinned' | 'jobName' | 'dismissed' | 'blocked' | 'notes' | 'order'>>;
 
 export function setMeta(id: string, patch: MetaPatch): AgentMeta {
   if (!db) return { ...EMPTY(id), ...patch };
@@ -143,13 +150,14 @@ export function setMeta(id: string, patch: MetaPatch): AgentMeta {
     pinned: patch.pinned ?? cur.pinned,
     jobName: patch.jobName !== undefined ? patch.jobName : cur.jobName,
     dismissed: patch.dismissed ?? cur.dismissed,
+    blocked: patch.blocked ?? cur.blocked,
     notes: patch.notes !== undefined ? patch.notes : cur.notes,
     order: patch.order !== undefined ? patch.order : cur.order,
   };
   db.prepare(
-    `INSERT INTO agent_meta (id, pinned, jobName, dismissed, notes, sortOrder, updatedAt)
-     VALUES (@id, @pinned, @jobName, @dismissed, @notes, @sortOrder, @updatedAt)
-     ON CONFLICT(id) DO UPDATE SET pinned=@pinned, jobName=@jobName, dismissed=@dismissed, notes=@notes, sortOrder=@sortOrder, updatedAt=@updatedAt`,
-  ).run({ id, pinned: next.pinned ? 1 : 0, jobName: next.jobName, dismissed: next.dismissed ? 1 : 0, notes: next.notes, sortOrder: next.order, updatedAt: Date.now() });
+    `INSERT INTO agent_meta (id, pinned, jobName, dismissed, blocked, notes, sortOrder, updatedAt)
+     VALUES (@id, @pinned, @jobName, @dismissed, @blocked, @notes, @sortOrder, @updatedAt)
+     ON CONFLICT(id) DO UPDATE SET pinned=@pinned, jobName=@jobName, dismissed=@dismissed, blocked=@blocked, notes=@notes, sortOrder=@sortOrder, updatedAt=@updatedAt`,
+  ).run({ id, pinned: next.pinned ? 1 : 0, jobName: next.jobName, dismissed: next.dismissed ? 1 : 0, blocked: next.blocked ? 1 : 0, notes: next.notes, sortOrder: next.order, updatedAt: Date.now() });
   return next;
 }

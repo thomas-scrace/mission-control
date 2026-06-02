@@ -1,4 +1,3 @@
-import { useCallback, useState } from 'react';
 import type { AgentRecord } from '../../shared/types';
 import { AgentCard } from './AgentCard';
 import { Swimlanes, Lane } from './Swimlanes';
@@ -13,94 +12,24 @@ interface Props {
   /** True when there are agents in total but the active filters hid them all. */
   filteredEmpty: boolean;
   onSelect: (id: string) => void;
-  /** Drop `draggedId` at slot `targetIndex` in the current visible order. */
-  onReorder: (draggedId: string, targetIndex: number) => void;
+  /** Manually (un)block a card by dragging it to/from the Blocked lane. */
+  onBlock: (id: string, blocked: boolean) => void;
   onClearFilters: () => void;
 }
 
-/** Which edge of a card the drop indicator is shown on. */
-type DropEdge = 'before' | 'after' | null;
-
-/**
- * A responsive grid of agent cards with dependency-free HTML5 drag-to-reorder.
- * Only the grip handle inside each card is draggable, so dragging never fights
- * the card's click-to-open. A crisp accent indicator marks where a card lands.
- */
-export function Cards({
-  agents,
-  selectedId,
-  idleByAgent,
-  loading,
-  filteredEmpty,
-  onSelect,
-  onReorder,
-  onClearFilters,
-}: Props) {
-  const [draggingId, setDraggingId] = useState<string | null>(null);
-  // The card currently hovered as a drop target, and which edge.
-  const [over, setOver] = useState<{ id: string; edge: DropEdge }>({
-    id: '',
-    edge: null,
-  });
-
-  const clearDrag = useCallback(() => {
-    setDraggingId(null);
-    setOver({ id: '', edge: null });
-  }, []);
-
-  const handleDragStart = useCallback((id: string) => {
-    setDraggingId(id);
-  }, []);
-
-  const handleDragOver = useCallback(
-    (id: string, edge: Exclude<DropEdge, null>) => {
-      setOver((prev) =>
-        prev.id === id && prev.edge === edge ? prev : { id, edge },
-      );
-    },
-    [],
-  );
-
-  const handleDrop = useCallback(
-    (targetId: string, edge: Exclude<DropEdge, null>) => {
-      const dragged = draggingId;
-      clearDrag();
-      if (!dragged || dragged === targetId) return;
-
-      const targetIdx = agents.findIndex((a) => a.id === targetId);
-      if (targetIdx === -1) return;
-      // Index in the list (which still includes the dragged card). App's handler
-      // removes the dragged card before resolving neighbours, so we pass the
-      // slot in the *full* visible list: before the target, or after it.
-      const targetIndex = edge === 'before' ? targetIdx : targetIdx + 1;
-      onReorder(dragged, targetIndex);
-    },
-    [agents, draggingId, onReorder, clearDrag],
-  );
-
-  // The whole grid stays one ordered list for drag math (handleDrop indexes into
-  // `agents`); we only SPLIT THE RENDER into Live / Idle bands.
+/** The "All" overview: agents split into Blocked / Running / Needs me / Inactive lanes. */
+export function Cards({ agents, selectedId, idleByAgent, loading, filteredEmpty, onSelect, onBlock, onClearFilters }: Props) {
   const cardFor = (agent: AgentRecord) => (
-    <AgentCard
-      key={agent.id}
-      agent={agent}
-      selected={agent.id === selectedId}
-      idleSec={idleByAgent[agent.id] ?? null}
-      dragging={draggingId === agent.id}
-      dropEdge={draggingId && over.id === agent.id && draggingId !== agent.id ? over.edge : null}
-      onSelect={onSelect}
-      onDragStart={handleDragStart}
-      onDragOver={handleDragOver}
-      onDrop={handleDrop}
-      onDragEnd={clearDrag}
-    />
+    <AgentCard key={agent.id} agent={agent} selected={agent.id === selectedId} idleSec={idleByAgent[agent.id] ?? null} onSelect={onSelect} />
   );
 
-  // Same three statuses as a project tab; the All tab has no "available" worktrees, so the
-  // third lane is "Inactive" (sessions whose process is gone).
-  const running = agents.filter((a) => agentLane(a) === 'running');
-  const needsMe = agents.filter((a) => agentLane(a) === 'needs-me');
-  const inactive = agents.filter((a) => agentLane(a) === 'inactive');
+  // Manually-blocked first; the rest by the three statuses (the All tab has no "available"
+  // worktrees, so its third status lane is "Inactive" — sessions whose process is gone).
+  const blocked = agents.filter((a) => a.blocked);
+  const rest = agents.filter((a) => !a.blocked);
+  const running = rest.filter((a) => agentLane(a) === 'running');
+  const needsMe = rest.filter((a) => agentLane(a) === 'needs-me');
+  const inactive = rest.filter((a) => agentLane(a) === 'inactive');
 
   return (
     <div className="flex min-h-0 flex-1 flex-col">
@@ -114,18 +43,21 @@ export function Cards({
         )
       ) : (
         <Swimlanes>
+          <Lane label="Blocked" count={blocked.length} tone="blocked" first onDropCard={(id) => onBlock(id, true)} emptyHint="Drag a card here to park it as blocked.">
+            {blocked.map(cardFor)}
+          </Lane>
           {running.length > 0 && (
-            <Lane label="Running" count={running.length} tone="running" first>
+            <Lane label="Running" count={running.length} tone="running" onDropCard={(id) => onBlock(id, false)}>
               {running.map(cardFor)}
             </Lane>
           )}
           {needsMe.length > 0 && (
-            <Lane label="Needs me" count={needsMe.length} tone="needs" first={running.length === 0}>
+            <Lane label="Needs me" count={needsMe.length} tone="needs" onDropCard={(id) => onBlock(id, false)}>
               {needsMe.map(cardFor)}
             </Lane>
           )}
           {inactive.length > 0 && (
-            <Lane label="Inactive" count={inactive.length} tone="inactive" first={running.length === 0 && needsMe.length === 0}>
+            <Lane label="Inactive" count={inactive.length} tone="inactive" onDropCard={(id) => onBlock(id, false)}>
               {inactive.map(cardFor)}
             </Lane>
           )}
