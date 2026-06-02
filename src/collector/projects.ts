@@ -47,6 +47,17 @@ export function toSlotAgentRef(a: AgentRecord): SlotAgentRef {
   };
 }
 
+/**
+ * Who (if anyone) occupies a worktree slot. An ENDED winner doesn't count — its
+ * process is gone, so the worktree is free for a new agent (it reads as available).
+ * Liveness already treats a quiet-but-still-running worktree as `idle`, not `ended`,
+ * so `idle`/`live`/`unknown` winners keep the slot occupied.
+ */
+export function slotOccupant(winner: AgentRecord | null): SlotAgentRef | null {
+  if (!winner || winner.liveness === 'ended') return null;
+  return toSlotAgentRef(winner);
+}
+
 // ───────────────────────── project store (separate from agents) ─────────────────────────
 
 export type ProjectStoreChange = { type: 'upsert'; project: Project } | { type: 'remove'; id: string };
@@ -182,6 +193,7 @@ export async function buildProjects(now = Date.now()): Promise<Project[]> {
       const raw = raws[i]!;
       const candidates = buckets.get(raw.path) ?? [];
       const winner = pickWinner(candidates);
+      const occupant = slotOccupant(winner); // null when the slot is effectively free (ended)
       const live = winner?.liveness === 'live';
       const wtName = path.basename(raw.path);
 
@@ -193,9 +205,9 @@ export async function buildProjects(now = Date.now()): Promise<Project[]> {
       // (keyed by the project id = git common-dir, so identically-named worktrees don't collide).
       const pr = winner?.pr ?? getCachedPr(id, raw.branch);
 
-      // Keep an empty, non-base slot's PR warm — but only for the active project or one with a
-      // live agent, so dormant worktrees don't trigger `gh` storms.
-      if (!winner && raw.branch && (id === activeProjectId || hasLiveAgent)) {
+      // Keep an available (unoccupied) non-base slot's PR warm — but only for the active project
+      // or one with a live agent, so dormant worktrees don't trigger `gh` storms.
+      if (!occupant && raw.branch && (id === activeProjectId || hasLiveAgent)) {
         considerPrFor(
           { id: `${id}|${raw.path}`, cwd: raw.path, branch: raw.branch, worktree: wtName, repo: id, liveness: 'ended', updatedAt: now, pr },
           () => {}, // result lands in the shared cache; picked up on the next rebuild
@@ -213,7 +225,7 @@ export async function buildProjects(now = Date.now()): Promise<Project[]> {
         ahead: git.ahead,
         behind: git.behind,
         pr,
-        agent: winner ? toSlotAgentRef(winner) : null,
+        agent: occupant,
         sessionsCount: candidates.length,
       });
     }

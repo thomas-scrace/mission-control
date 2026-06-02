@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { pickWinner, toSlotAgentRef, projectStore, refreshProjects } from '../src/collector/projects';
+import { pickWinner, toSlotAgentRef, slotOccupant, projectStore, refreshProjects } from '../src/collector/projects';
 import type { AgentRecord, Liveness, AgentStatus, Project } from '../src/shared/types';
 
 // pickWinner only reads id/liveness/updatedAt/status; cast a minimal shape.
@@ -33,6 +33,19 @@ describe('refreshProjects resilience', () => {
     // The guard must treat that as a transient failure and keep the existing project.
     await refreshProjects(0);
     expect(projectStore.get('repo-x')).toBeTruthy();
+  });
+});
+
+describe('slotOccupant', () => {
+  it('an ENDED winner does not occupy the slot (so it reads as available)', () => {
+    expect(slotOccupant(ag('x', 'ended', 1000))).toBeNull();
+  });
+  it('a live or idle winner occupies the slot', () => {
+    expect(slotOccupant(ag('a', 'live', 1000))?.id).toBe('a');
+    expect(slotOccupant(ag('b', 'idle', 1000))?.id).toBe('b');
+  });
+  it('no winner -> no occupant', () => {
+    expect(slotOccupant(null)).toBeNull();
   });
 });
 

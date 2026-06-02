@@ -23,3 +23,17 @@ describe('classifyClaudeLiveness — waiting agents stay live', () => {
     expect(r.liveness).not.toBe('live');
   });
 });
+
+describe('classifyClaudeLiveness — occupied vs available', () => {
+  const quiet = Date.now() - 30 * 60_000; // 30 min: past the "ended by recency" threshold
+
+  it('a quiet worktree WITH a running claude is idle (occupied), not ended', () => {
+    const r = classifyClaudeLiveness(agent({ status: 'idle', updatedAt: quiet }), [proc('/Users/me/repo')], '/Users/me/repo');
+    expect(r.liveness).toBe('idle');
+  });
+
+  it('a quiet worktree with NO process is ended (so its slot reads as available)', () => {
+    const r = classifyClaudeLiveness(agent({ status: 'idle', updatedAt: quiet }), [], '/Users/me/repo');
+    expect(r.liveness).toBe('ended');
+  });
+});

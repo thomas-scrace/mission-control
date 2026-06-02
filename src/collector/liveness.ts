@@ -114,6 +114,10 @@ export function classifyClaudeLiveness(
     return { liveness: 'idle', livenessBasis: `active ${ago} ago · no live process` };
   }
   if (recencyMs < IDLE_RECENT_MS) return { liveness: 'idle', livenessBasis: `active ${ago} ago` };
+  // Quiet for a while — ENDED, unless a claude is still running in this worktree (it's open,
+  // just idle at the prompt). This keeps an occupied worktree from looking dead, and lets a
+  // worktree with no process read as genuinely free (available).
+  if (matched) return { liveness: 'idle', livenessBasis: `claude open in ${agent.worktree} · quiet ${ago}` };
   return { liveness: 'ended', livenessBasis: `idle ${ago} · no recent activity` };
 }
 
