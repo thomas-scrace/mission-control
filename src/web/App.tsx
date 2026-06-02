@@ -140,25 +140,22 @@ export function App() {
       });
   }, [activeProject, agentById]);
 
-  // Per-project tab counts (occupied / need-you / dirty).
+  // Per-project tab counts, by the three statuses (running / needs-me / available).
   const projectStats = useMemo<Record<string, ProjectStat>>(() => {
     const out: Record<string, ProjectStat> = {};
     for (const p of projects) {
-      let occupied = 0;
-      let needY = 0;
-      let dirty = 0;
+      let running = 0;
+      let needsMe = 0;
+      let available = 0;
       for (const slot of p.slots) {
-        if (slot.dirty) dirty++;
-        if (slot.agent) {
-          occupied++;
-          const a = agentById.get(slot.agent.id);
-          if ((a && needsYou(a)) || slot.agent.needsYou) needY++;
-        }
+        if (!slot.agent) available++;
+        else if (slot.agent.status === 'busy') running++;
+        else needsMe++;
       }
-      out[p.id] = { occupied, needYou: needY, dirty };
+      out[p.id] = { running, needsMe, available };
     }
     return out;
-  }, [projects, agentById]);
+  }, [projects]);
 
   // Header counts (over non-dismissed agents in the active window). Deliberately
   // ignores the tool/live/query filters so the header reflects the whole window.

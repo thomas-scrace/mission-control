@@ -31,27 +31,27 @@ export function SlotGrid({ project, slots, selectedId, idleByAgent, onSelect }: 
     />
   );
 
-  // Three lanes: live agents, occupied-but-idle agents, then available (empty) slots.
-  const live = slots.filter((e) => e.agent && e.agent.liveness === 'live');
-  const idle = slots.filter((e) => e.agent && e.agent.liveness !== 'live');
+  // Three lanes: Running (working), Needs me (alive but yielded), Available (no process).
+  const running = slots.filter((e) => e.agent && e.agent.status === 'busy');
+  const needsMe = slots.filter((e) => e.agent && e.agent.status !== 'busy');
   const available = slots.filter((e) => !e.agent);
 
   return (
     <div className="flex min-h-0 flex-1 flex-col">
       <ProjectHeader project={project} slots={slots} />
       <Swimlanes>
-        {live.length > 0 && (
-          <Lane label="Live" count={live.length} tone="live" first>
-            {live.map(cardFor)}
+        {running.length > 0 && (
+          <Lane label="Running" count={running.length} tone="running" first>
+            {running.map(cardFor)}
           </Lane>
         )}
-        {idle.length > 0 && (
-          <Lane label="Idle" count={idle.length} tone="idle" first={live.length === 0}>
-            {idle.map(cardFor)}
+        {needsMe.length > 0 && (
+          <Lane label="Needs me" count={needsMe.length} tone="needs" first={running.length === 0}>
+            {needsMe.map(cardFor)}
           </Lane>
         )}
         {available.length > 0 && (
-          <Lane label="Available" count={available.length} tone="available" first={live.length === 0 && idle.length === 0}>
+          <Lane label="Available" count={available.length} tone="available" first={running.length === 0 && needsMe.length === 0}>
             {available.map(cardFor)}
           </Lane>
         )}

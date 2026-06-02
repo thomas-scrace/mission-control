@@ -1,5 +1,18 @@
-import type { AgentRecord, Phase } from '../../shared/types';
+import type { AgentRecord, AgentStatus, Liveness, Phase } from '../../shared/types';
 import { PHASES } from '../../shared/types';
+
+/**
+ * The single status that drives the board's three lanes:
+ *  - `running`   — a process is alive and actively working (don't disturb it).
+ *  - `needs-me`  — a process is alive but it has yielded (returned / asking / idle at the prompt).
+ *  - `inactive`  — no live process (a worktree slot is therefore available to start a new agent).
+ */
+export type AgentLane = 'running' | 'needs-me' | 'inactive';
+
+export function agentLane(a: { status: AgentStatus; liveness: Liveness }): AgentLane {
+  if (a.liveness === 'ended' || a.liveness === 'unknown') return 'inactive'; // no/uncertain process
+  return a.status === 'busy' ? 'running' : 'needs-me';
+}
 
 /**
  * Human "time ago" from an epoch-ms timestamp, computed against `now`

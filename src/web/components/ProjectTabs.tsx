@@ -2,9 +2,9 @@ import { useMemo, useState } from 'react';
 import type { Project } from '../../shared/types';
 
 export interface ProjectStat {
-  occupied: number;
-  needYou: number;
-  dirty: number;
+  running: number;
+  needsMe: number;
+  available: number;
 }
 
 interface Props {
@@ -71,24 +71,23 @@ function Tab({
       ].join(' ')}
     >
       <span className="max-w-[200px] truncate">{label}</span>
-      {stat && stat.occupied > 0 && (
-        <span className="tabular-nums text-ink-faint/80" title={`${stat.occupied} active`}>
-          {stat.occupied}
+      {stat && stat.running > 0 && (
+        <span className="tabular-nums text-live" title={`${stat.running} running`}>
+          {stat.running}
         </span>
       )}
-      {stat && stat.needYou > 0 && (
+      {stat && stat.needsMe > 0 && (
         <span
           className="inline-flex items-center gap-1 rounded-full border border-waiting/40 bg-waiting/10 px-1.5 text-[10px] font-semibold tabular-nums text-waiting"
-          title={`${stat.needYou} need you`}
+          title={`${stat.needsMe} need you`}
         >
           <span className="mc-busy-pulse inline-block h-1 w-1 rounded-full bg-current" aria-hidden />
-          {stat.needYou}
+          {stat.needsMe}
         </span>
       )}
-      {stat && stat.dirty > 0 && (
-        <span className="inline-flex items-center gap-1 text-[10px] tabular-nums text-idle" title={`${stat.dirty} dirty`}>
-          <span className="inline-block h-1 w-1 rounded-full bg-current" aria-hidden />
-          {stat.dirty}
+      {stat && stat.available > 0 && (
+        <span className="tabular-nums text-ink-faint/70" title={`${stat.available} worktrees available`}>
+          {stat.available} free
         </span>
       )}
     </button>

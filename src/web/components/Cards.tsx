@@ -2,6 +2,7 @@ import { useCallback, useState } from 'react';
 import type { AgentRecord } from '../../shared/types';
 import { AgentCard } from './AgentCard';
 import { Swimlanes, Lane } from './Swimlanes';
+import { agentLane } from '../lib/format';
 
 interface Props {
   agents: AgentRecord[];
@@ -95,8 +96,11 @@ export function Cards({
     />
   );
 
-  const live = agents.filter((a) => a.liveness === 'live');
-  const idle = agents.filter((a) => a.liveness !== 'live');
+  // Same three statuses as a project tab; the All tab has no "available" worktrees, so the
+  // third lane is "Inactive" (sessions whose process is gone).
+  const running = agents.filter((a) => agentLane(a) === 'running');
+  const needsMe = agents.filter((a) => agentLane(a) === 'needs-me');
+  const inactive = agents.filter((a) => agentLane(a) === 'inactive');
 
   return (
     <div className="flex min-h-0 flex-1 flex-col">
@@ -110,14 +114,19 @@ export function Cards({
         )
       ) : (
         <Swimlanes>
-          {live.length > 0 && (
-            <Lane label="Live" count={live.length} tone="live" first>
-              {live.map(cardFor)}
+          {running.length > 0 && (
+            <Lane label="Running" count={running.length} tone="running" first>
+              {running.map(cardFor)}
             </Lane>
           )}
-          {idle.length > 0 && (
-            <Lane label="Idle" count={idle.length} tone="idle" first={live.length === 0}>
-              {idle.map(cardFor)}
+          {needsMe.length > 0 && (
+            <Lane label="Needs me" count={needsMe.length} tone="needs" first={running.length === 0}>
+              {needsMe.map(cardFor)}
+            </Lane>
+          )}
+          {inactive.length > 0 && (
+            <Lane label="Inactive" count={inactive.length} tone="inactive" first={running.length === 0 && needsMe.length === 0}>
+              {inactive.map(cardFor)}
             </Lane>
           )}
         </Swimlanes>

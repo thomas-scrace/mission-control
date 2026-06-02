@@ -1,6 +1,6 @@
 import type { ReactNode } from 'react';
 
-type Tone = 'live' | 'idle' | 'available';
+type Tone = 'running' | 'needs' | 'available' | 'inactive';
 
 /** A horizontal row of vertical lanes (kanban-style). Lanes scroll independently;
  *  the row scrolls horizontally if they overflow. */
@@ -23,11 +23,12 @@ export function Lane({
   first?: boolean;
   children: ReactNode;
 }) {
-  const color = tone === 'live' ? 'text-live' : 'text-ink-faint';
+  const color = tone === 'running' ? 'text-live' : tone === 'needs' ? 'text-waiting' : 'text-ink-faint';
   return (
     <section className={`flex w-[400px] shrink-0 flex-col ${first ? '' : 'border-l border-hairline'}`}>
       <div className="flex items-center gap-2 px-5 pb-2 pt-4">
-        {tone === 'live' && <span className="mc-dot-live inline-block h-1.5 w-1.5 rounded-full bg-live" aria-hidden />}
+        {tone === 'running' && <span className="mc-dot-live inline-block h-1.5 w-1.5 rounded-full bg-live" aria-hidden />}
+        {tone === 'needs' && <span className="inline-block h-1.5 w-1.5 rounded-full bg-waiting" aria-hidden />}
         <span className={`text-[11px] font-semibold uppercase tracking-wider ${color}`}>{label}</span>
         <span className="text-[11px] tabular-nums text-ink-faint">{count}</span>
       </div>
