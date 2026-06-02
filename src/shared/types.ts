@@ -42,6 +42,8 @@ export interface AgentBrief {
   needsReason: string | null; // if so, what it needs
   lastAsk: string | null; // the last thing you asked it to do
   nextStep: string | null; // the clear next action
+  simplified: boolean; // has a code-simplifier pass been run on the latest batch of work
+  reviewed: boolean; // has a /code-review pass been run on the latest batch of work
   at: number; // epoch ms when synthesized
   state: 'pending' | 'ready' | 'error';
 }

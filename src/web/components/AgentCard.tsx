@@ -1,31 +1,31 @@
 import { memo } from 'react';
 import type { AgentRecord } from '../../shared/types';
 import { PrChip } from './PrStatus';
+import { WaitingExchange } from './WaitingExchange';
 import {
   CARD_INTERACTIVE,
   CARD_SHELL,
-  CardFooter,
-  CardHeader,
-  NeedsYouBanner,
-  ReadyBody,
+  CardTitle,
+  DetailsButton,
+  GripIcon,
+  MetaRow,
+  NextLine,
   SynthesizingBody,
+  WorkChecks,
   cardDimClasses,
   cardToneClass,
   focusCardProps,
 } from './cardParts';
-import { WaitingExchange } from './WaitingExchange';
-import { briefPending, isErrorTone, livenessLabel, needsYou } from '../lib/format';
+import { agentLane, briefPending, clean, isErrorTone, livenessLabel, needsYou } from '../lib/format';
 
 type DropEdge = 'before' | 'after' | null;
 
 interface Props {
   agent: AgentRecord;
   selected: boolean;
-  /** Live-ticking idle seconds (recomputed from updatedAt each tick). */
+  /** Live-ticking idle seconds (unused for display now; kept for dim/liveness tone). */
   idleSec: number | null;
-  /** True while THIS card is the one being dragged. */
   dragging: boolean;
-  /** When set, draw a drop indicator on this edge of the card. */
   dropEdge: DropEdge;
   onSelect: (id: string) => void;
   onDragStart: (id: string) => void;
@@ -35,10 +35,8 @@ interface Props {
 }
 
 /**
- * One calm, focused agent card for the "All" overview tab. The eye should land on
- * exactly two things: (1) anything that NEEDS YOU, and (2) the one-line summary.
- * Everything else recedes. Dense detail lives in the drawer. Presentational pieces
- * are shared with the per-project SlotCard via cardParts.
+ * One agent card for the "All" overview tab. Same decluttered layout as the
+ * per-project SlotCard (shared cardParts), with a drag handle for reordering.
  */
 export const AgentCard = memo(function AgentCard({
   agent,
@@ -53,18 +51,39 @@ export const AgentCard = memo(function AgentCard({
   onDragEnd,
 }: Props) {
   const wants = needsYou(agent);
-  const error = isErrorTone(agent);
   const pending = briefPending(agent);
+  const needsMe = agentLane(agent) === 'needs-me';
   const live = livenessLabel(agent, idleSec);
 
-  const dropCls =
-    dropEdge === 'before' ? 'mc-drop-before' : dropEdge === 'after' ? 'mc-drop-after' : '';
+  const dropCls = dropEdge === 'before' ? 'mc-drop-before' : dropEdge === 'after' ? 'mc-drop-after' : '';
 
   // Cards stack vertically in a lane, so the drop edge is top/bottom.
   const edgeFromEvent = (e: React.DragEvent<HTMLElement>): 'before' | 'after' => {
     const rect = e.currentTarget.getBoundingClientRect();
     return e.clientY < rect.top + rect.height / 2 ? 'before' : 'after';
   };
+
+  const grip = (
+    <span
+      className="mc-grip -ml-1 shrink-0 rounded p-0.5 text-ink-faint transition-colors hover:text-ink-dim"
+      draggable
+      title="Drag to reorder"
+      aria-label="Drag to reorder"
+      onClick={(e) => e.stopPropagation()}
+      onDragStart={(e) => {
+        e.stopPropagation();
+        e.dataTransfer.effectAllowed = 'move';
+        e.dataTransfer.setData('text/plain', agent.id);
+        onDragStart(agent.id);
+      }}
+      onDragEnd={(e) => {
+        e.stopPropagation();
+        onDragEnd();
+      }}
+    >
+      <GripIcon />
+    </span>
+  );
 
   return (
     <article
@@ -82,25 +101,31 @@ export const AgentCard = memo(function AgentCard({
       className={[
         CARD_SHELL,
         CARD_INTERACTIVE,
-        cardToneClass(wants, error),
+        cardToneClass(wants, isErrorTone(agent)),
         ...cardDimClasses(wants, live),
         selected ? 'ring-1 ring-accent/60' : '',
         dragging ? 'mc-dragging' : '',
         dropCls,
       ].join(' ')}
     >
-      <CardHeader agent={agent} onSelect={onSelect} onDragStart={onDragStart} onDragEnd={onDragEnd} />
+      <MetaRow
+        label={clean(agent.worktree) ?? '—'}
+        labelTitle={agent.cwd}
+        branch={agent.branch}
+        dirty={null}
+        tool={agent.tool}
+        grip={grip}
+      />
 
-      {wants && <NeedsYouBanner agent={agent} error={error} />}
-
-      {pending ? <SynthesizingBody agent={agent} /> : <ReadyBody agent={agent} />}
-
-      {/* Matches the project-tab slot cards: the You/Agent exchange when it needs you. */}
-      {wants && !error && <WaitingExchange agent={agent} />}
+      {pending ? <SynthesizingBody agent={agent} /> : <CardTitle agent={agent} />}
 
       {agent.pr && <PrChip pr={agent.pr} />}
 
-      <CardFooter live={live} />
+      {!pending && needsMe && <WaitingExchange agent={agent} />}
+      {!pending && <WorkChecks brief={agent.brief} />}
+      {!pending && <NextLine brief={agent.brief} />}
+
+      <DetailsButton id={agent.id} onSelect={onSelect} />
     </article>
   );
 });

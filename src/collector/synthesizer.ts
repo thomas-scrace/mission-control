@@ -20,21 +20,23 @@ const execFileAsync = promisify(execFile);
 // Stable instructions live in the system prompt so the Anthropic prompt cache (5-min TTL)
 // covers them across a sweep — only the small per-agent digest varies.
 const SYSTEM_PROMPT = `You summarize the live state of an AI coding agent's session for an at-a-glance dashboard. You receive a DIGEST of the recent transcript. Reply with ONLY a JSON object (no prose, no markdown fences) with exactly these keys:
-{"title": string, "summary": string, "phase": string, "needsYou": boolean, "needsReason": string, "lastAsk": string, "nextStep": string}
+{"title": string, "summary": string, "phase": string, "needsYou": boolean, "needsReason": string, "lastAsk": string, "nextStep": string, "simplified": boolean, "reviewed": boolean}
 Definitions:
-- title: a SHORT name for the task — 1 to 4 words, Title Case, like a label or tab name. Examples: "Dark mode fix", "MCP server", "Burner domains", "UI standardisation", "CD deploy fix", "Color palette". No punctuation, no trailing period.
-- summary: ONE plain-language sentence naming the overall project/task this agent is working on. No file paths, no jargon. (≤14 words)
-- phase: the current workflow stage, EXACTLY one of: "planning" (designing/plan-mode/deciding approach before coding), "execution" (writing or editing code), "testing" (running or writing tests), "simplification" (running a code-simplifier / refactor-for-clarity pass), "code-review" (running a code review or security review), "release" (committing/pushing/PR/merge/deploy). Trust the PHASE HINTS provided.
+- title: a CLEAR, SPECIFIC name for what this task is actually doing — a short phrase a human can understand at a glance, up to ~7 words, sentence case. Read the recent activity and the user's request and name the real objective, not a generic label. Prefer specificity over brevity. GOOD: "Dedupe debounced input-event types", "Fix Smartlead PR review flow", "Migrate colour tokens to Tailwind v4", "Add full-text search to docs". BAD (too vague/cryptic): "Type Dedup Deploy", "UI fix", "Update code". No trailing period.
+- summary: ONE plain-language sentence naming the overall project/task this agent is working on. No file paths, no jargon. (≤16 words)
+- phase: the current workflow stage, EXACTLY one of: "planning", "execution", "testing", "simplification", "code-review", "release". Trust the PHASE HINTS provided.
 - needsYou: true ONLY if the agent is blocked waiting on the human — a question, a plan to approve, a decision, or an error it cannot resolve alone. An agent that is still working is needsYou=false.
 - needsReason: if needsYou is true, a short phrase for what it needs; otherwise "".
-- lastAsk: paraphrase the most recent thing the human asked the agent to do (≤12 words).
-- nextStep: the single clearest next action — what the agent will do next, or what the human must do if it's blocked (≤12 words).
+- lastAsk: paraphrase the most recent thing the human asked the agent to do — this should always be filled in for a paused agent (≤14 words).
+- nextStep: the single clearest next action — what the agent will do next, or what the human must do if it's blocked (≤14 words).
+- simplified: true if, on the MOST RECENT batch of work, a code-simplifier / refactor-for-clarity pass has already been run (see the simplification PHASE HINT and the activity). Otherwise false.
+- reviewed: true if, on the MOST RECENT batch of work, a code review (e.g. /code-review) has already been run (see the code-review PHASE HINT and the activity). Otherwise false.
 Output JSON only.`;
 
 const PHASES_OK = new Set<Phase>(['planning', 'execution', 'testing', 'simplification', 'code-review', 'release']);
 
 /** A short hash of the fields that, when changed, warrant re-synthesis. */
-const PROMPT_VERSION = 'v2'; // bump when the synthesis prompt/schema changes, to invalidate cached briefs
+const PROMPT_VERSION = 'v3'; // bump when the synthesis prompt/schema changes, to invalidate cached briefs
 
 export function contentHash(a: AgentRecord): string {
   // Include model + prompt version so switching them invalidates cached briefs.
@@ -73,13 +75,15 @@ function parseBrief(resultText: string): AgentBrief {
   const obj = JSON.parse(cleaned);
   const phase = PHASES_OK.has(obj.phase) ? (obj.phase as Phase) : null;
   return {
-    title: String(obj.title ?? '').replace(/[.\s]+$/, '').slice(0, 48),
+    title: String(obj.title ?? '').replace(/[.\s]+$/, '').slice(0, 64),
     summary: String(obj.summary ?? '').slice(0, 200),
     phase,
     needsYou: !!obj.needsYou,
     needsReason: obj.needsReason ? String(obj.needsReason).slice(0, 160) : null,
     lastAsk: obj.lastAsk ? String(obj.lastAsk).slice(0, 200) : null,
     nextStep: obj.nextStep ? String(obj.nextStep).slice(0, 200) : null,
+    simplified: !!obj.simplified,
+    reviewed: !!obj.reviewed,
     at: Date.now(),
     state: 'ready',
   };
@@ -185,5 +189,5 @@ export function considerSynthesis(agent: AgentRecord, apply: ApplyBrief): void {
 }
 
 function emptyBrief(state: AgentBrief['state']): AgentBrief {
-  return { title: '', summary: '', phase: null, needsYou: false, needsReason: null, lastAsk: null, nextStep: null, at: Date.now(), state };
+  return { title: '', summary: '', phase: null, needsYou: false, needsReason: null, lastAsk: null, nextStep: null, simplified: false, reviewed: false, at: Date.now(), state };
 }

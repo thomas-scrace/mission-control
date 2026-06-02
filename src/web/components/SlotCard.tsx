@@ -1,94 +1,84 @@
 import { memo } from 'react';
 import type { AgentRecord, WorktreeSlot } from '../../shared/types';
-import { SlotMeta } from './SlotMeta';
+import { PrChip } from './PrStatus';
 import { WaitingExchange } from './WaitingExchange';
 import { StartAgentControl } from './StartAgentControl';
 import {
   CARD_INTERACTIVE,
   CARD_SHELL,
-  CardFooter,
-  CardHeader,
-  NeedsYouBanner,
-  ReadyBody,
+  CardTitle,
+  DetailsButton,
+  MetaRow,
+  NextLine,
   SynthesizingBody,
-  cardDimClasses,
+  WorkChecks,
   cardToneClass,
   focusCardProps,
 } from './cardParts';
-import { briefPending, isErrorTone, livenessLabel, needsYou } from '../lib/format';
+import { agentLane, briefPending, isErrorTone, needsYou } from '../lib/format';
 
 interface Props {
   slot: WorktreeSlot;
   /** The joined occupying agent (null = empty slot). */
   agent: AgentRecord | null;
+  /** "Worktree N" (project-relative); the real dir name is the hover title. */
+  label: string;
+  labelTitle: string;
   selected: boolean;
-  idleSec: number | null;
   onSelect: (id: string) => void;
 }
 
 /**
  * One worktree "slot" — occupied by an agent or empty/available. Occupied slots
- * click-to-focus the real window (like AgentCard) and reuse all the shared card
- * parts; empty slots show a quiet, dashed shell with a Start control.
+ * click-to-focus the real window; empty slots show a quiet, dashed shell with a
+ * Start control. Title near the top; "you asked / agent" only when it needs you.
  */
-export const SlotCard = memo(function SlotCard({ slot, agent, selected, idleSec, onSelect }: Props) {
-  if (!agent) return <EmptySlotCard slot={slot} />;
+export const SlotCard = memo(function SlotCard({ slot, agent, label, labelTitle, selected, onSelect }: Props) {
+  if (!agent) return <EmptySlotCard slot={slot} label={label} labelTitle={labelTitle} />;
 
   const wants = needsYou(agent);
-  const error = isErrorTone(agent);
   const pending = briefPending(agent);
-  const live = livenessLabel(agent, idleSec);
+  const needsMe = agentLane(agent) === 'needs-me';
   const restingBorder = slot.isPrimary ? 'border-hairline-bright' : 'border-hairline';
 
   return (
     <article
       {...focusCardProps(agent)}
       aria-selected={selected}
-      className={[
-        CARD_SHELL,
-        CARD_INTERACTIVE,
-        cardToneClass(wants, error, restingBorder),
-        ...cardDimClasses(wants, live),
-        selected ? 'ring-1 ring-accent/60' : '',
-      ].join(' ')}
+      className={[CARD_SHELL, CARD_INTERACTIVE, cardToneClass(wants, isErrorTone(agent), restingBorder), selected ? 'ring-1 ring-accent/60' : ''].join(' ')}
     >
-      <SlotMeta slot={slot} />
-      <div className="h-px bg-hairline/60" aria-hidden />
-      <CardHeader agent={agent} onSelect={onSelect} showGrip={false} showLocation={false} />
+      <MetaRow label={label} labelTitle={labelTitle} branch={slot.branch} dirty={slot.dirty} tool={agent.tool} />
 
-      {wants && <NeedsYouBanner agent={agent} error={error} />}
+      {pending ? <SynthesizingBody agent={agent} /> : <CardTitle agent={agent} />}
 
-      {pending ? <SynthesizingBody agent={agent} /> : <ReadyBody agent={agent} />}
+      {slot.pr && <PrChip pr={slot.pr} />}
 
-      {/* When it needs you, surface the exchange: what you last said + what it's saying. */}
-      {wants && !error && <WaitingExchange agent={agent} />}
+      {!pending && needsMe && <WaitingExchange agent={agent} />}
+      {!pending && <WorkChecks brief={agent.brief} />}
+      {!pending && <NextLine brief={agent.brief} />}
 
-      <CardFooter live={live} />
+      <DetailsButton id={agent.id} onSelect={onSelect} />
     </article>
   );
 });
 
 /* ── Empty slot: quiet, dashed, with a Start control ───────────────────── */
 
-function EmptySlotCard({ slot }: { slot: WorktreeSlot }) {
+function EmptySlotCard({ slot, label, labelTitle }: { slot: WorktreeSlot; label: string; labelTitle: string }) {
   const launchable = slot.exists && !slot.bare;
   const heading = slot.bare ? 'Bare repository' : !slot.exists ? 'Worktree removed' : 'Available';
   return (
     <article
-      className={[
-        CARD_SHELL,
-        'border-dashed',
-        slot.isPrimary ? 'border-hairline-bright' : 'border-hairline',
-        'bg-surface/40',
-      ].join(' ')}
+      className={[CARD_SHELL, 'border-dashed', slot.isPrimary ? 'border-hairline-bright' : 'border-hairline', 'bg-surface/40'].join(' ')}
     >
-      <SlotMeta slot={slot} />
+      <MetaRow label={label} labelTitle={labelTitle} branch={slot.branch} dirty={slot.dirty} />
+      {slot.pr && <PrChip pr={slot.pr} />}
       <div className="flex flex-1 flex-col justify-between gap-4">
-        <p className="text-[15px] font-semibold text-ink-faint">{heading}</p>
+        <p className="text-[16px] font-semibold text-ink-faint">{heading}</p>
         {launchable ? (
           <StartAgentControl worktreePath={slot.path} />
         ) : (
-          <span className="text-[11px] text-ink-faint">
+          <span className="text-[12px] text-ink-faint">
             {slot.bare ? 'Bare repos have no working tree to start an agent in.' : 'This worktree directory is gone (prunable).'}
           </span>
         )}

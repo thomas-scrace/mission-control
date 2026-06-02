@@ -25,7 +25,7 @@ export function Lane({
 }) {
   const color = tone === 'running' ? 'text-live' : tone === 'needs' ? 'text-waiting' : 'text-ink-faint';
   return (
-    <section className={`flex w-[400px] shrink-0 flex-col ${first ? '' : 'border-l border-hairline'}`}>
+    <section className={`flex w-[460px] shrink-0 flex-col ${first ? '' : 'border-l border-hairline'}`}>
       <div className="flex items-center gap-2 px-5 pb-2 pt-4">
         {tone === 'running' && <span className="mc-dot-live inline-block h-1.5 w-1.5 rounded-full bg-live" aria-hidden />}
         {tone === 'needs' && <span className="inline-block h-1.5 w-1.5 rounded-full bg-waiting" aria-hidden />}

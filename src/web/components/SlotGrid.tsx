@@ -6,18 +6,20 @@ import { needsYou, shortPath } from '../lib/format';
 export interface SlotEntry {
   slot: WorktreeSlot;
   agent: AgentRecord | null;
+  /** "Worktree N" — a stable per-project number; the real dir name is the hover title. */
+  label: string;
+  labelTitle: string;
 }
 
 interface Props {
   project: Project | null;
   slots: SlotEntry[];
   selectedId: string | null;
-  idleByAgent: Record<string, number>;
   onSelect: (id: string) => void;
 }
 
 /** The per-project view: a header summary + a grid of worktree slot cards. */
-export function SlotGrid({ project, slots, selectedId, idleByAgent, onSelect }: Props) {
+export function SlotGrid({ project, slots, selectedId, onSelect }: Props) {
   if (!project) return null;
 
   const cardFor = (e: SlotEntry) => (
@@ -25,8 +27,9 @@ export function SlotGrid({ project, slots, selectedId, idleByAgent, onSelect }: 
       key={e.slot.path}
       slot={e.slot}
       agent={e.agent}
+      label={e.label}
+      labelTitle={e.labelTitle}
       selected={e.agent != null && e.agent.id === selectedId}
-      idleSec={e.agent ? idleByAgent[e.agent.id] ?? null : null}
       onSelect={onSelect}
     />
   );

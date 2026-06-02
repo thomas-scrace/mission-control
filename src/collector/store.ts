@@ -48,7 +48,7 @@ function shallowEqualForUi(a: AgentRecord, b: AgentRecord): boolean {
 
 function briefEqual(x: AgentRecord['brief'], y: AgentRecord['brief']): boolean {
   if (!x || !y) return x === y;
-  return x.state === y.state && x.at === y.at && x.title === y.title && x.summary === y.summary && x.phase === y.phase && x.needsYou === y.needsYou && x.nextStep === y.nextStep && x.lastAsk === y.lastAsk;
+  return x.state === y.state && x.at === y.at && x.title === y.title && x.summary === y.summary && x.phase === y.phase && x.needsYou === y.needsYou && x.nextStep === y.nextStep && x.lastAsk === y.lastAsk && x.simplified === y.simplified && x.reviewed === y.reviewed;
 }
 
 function prEqual(x: AgentRecord['pr'], y: AgentRecord['pr']): boolean {

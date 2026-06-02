@@ -6,7 +6,7 @@ import { Cards } from './components/Cards';
 import { ProjectTabs, type ProjectStat } from './components/ProjectTabs';
 import { SlotGrid, type SlotEntry } from './components/SlotGrid';
 import { DetailDrawer } from './components/DetailDrawer';
-import { needsYou, reorderOrder, sortAgents } from './lib/format';
+import { baseName, needsYou, reorderOrder, sortAgents } from './lib/format';
 
 const STALE_WINDOW_MS = 24 * 60 * 60 * 1000;
 
@@ -132,12 +132,14 @@ export function App() {
   // by path (stable — never reshuffles on status change).
   const projectSlots = useMemo<SlotEntry[]>(() => {
     if (!activeProject) return [];
-    return activeProject.slots
+    const sorted = activeProject.slots
       .map((slot) => ({ slot, agent: slot.agent ? agentById.get(slot.agent.id) ?? null : null }))
       .sort((a, b) => {
         if (a.slot.isPrimary !== b.slot.isPrimary) return a.slot.isPrimary ? -1 : 1;
         return a.slot.path < b.slot.path ? -1 : a.slot.path > b.slot.path ? 1 : 0;
       });
+    // Stable per-project worktree numbers; the real dir name is the hover title.
+    return sorted.map((e, i) => ({ ...e, label: `Worktree ${i + 1}`, labelTitle: baseName(e.slot.path) }));
   }, [activeProject, agentById]);
 
   // Per-project tab counts, by the three statuses (running / needs-me / available).
@@ -272,7 +274,6 @@ export function App() {
             project={activeProject}
             slots={projectSlots}
             selectedId={selectedId}
-            idleByAgent={idleByAgent}
             onSelect={setSelectedId}
           />
         )}
