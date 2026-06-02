@@ -152,7 +152,7 @@ export function App() {
       let available = 0;
       for (const slot of p.slots) {
         if (!slot.agent) available++;
-        else if (slot.agent.status === 'busy') running++;
+        else if (!slot.agent.needsYou && slot.agent.status === 'busy') running++;
         else needsMe++;
       }
       out[p.id] = { running, needsMe, available };

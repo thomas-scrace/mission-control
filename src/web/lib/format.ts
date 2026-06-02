@@ -1,4 +1,4 @@
-import type { AgentRecord, AgentStatus, Liveness, Phase } from '../../shared/types';
+import type { AgentBrief, AgentRecord, AgentStatus, Liveness, Phase } from '../../shared/types';
 import { PHASES } from '../../shared/types';
 
 /**
@@ -9,8 +9,11 @@ import { PHASES } from '../../shared/types';
  */
 export type AgentLane = 'running' | 'needs-me' | 'inactive';
 
-export function agentLane(a: { status: AgentStatus; liveness: Liveness }): AgentLane {
+export function agentLane(a: { status: AgentStatus; liveness: Liveness; brief?: AgentBrief | null }): AgentLane {
   if (a.liveness === 'ended' || a.liveness === 'unknown') return 'inactive'; // no/uncertain process
+  // Blocked on you wins over a mechanically-"busy" status — the synthesized brief reads the full
+  // context (e.g. a plan presented for approval / an AskUserQuestion that isn't in the transcript yet).
+  if (a.brief?.needsYou || a.status === 'waiting' || a.status === 'error') return 'needs-me';
   return a.status === 'busy' ? 'running' : 'needs-me';
 }
 

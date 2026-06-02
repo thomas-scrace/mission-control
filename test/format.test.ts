@@ -21,4 +21,12 @@ describe('agentLane', () => {
     expect(agentLane({ status: 'busy', liveness: 'ended' })).toBe('inactive');
     expect(agentLane({ status: 'unknown', liveness: 'unknown' })).toBe('inactive');
   });
+
+  it('mechanically busy but the brief flags needsYou -> needs-me (e.g. a plan-mode question)', () => {
+    expect(agentLane({ status: 'busy', liveness: 'idle', brief: { needsYou: true } as any })).toBe('needs-me');
+  });
+
+  it('busy with a non-needs-you brief stays running', () => {
+    expect(agentLane({ status: 'busy', liveness: 'live', brief: { needsYou: false } as any })).toBe('running');
+  });
 });

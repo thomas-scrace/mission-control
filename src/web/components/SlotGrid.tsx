@@ -1,7 +1,7 @@
 import type { AgentRecord, Project, WorktreeSlot } from '../../shared/types';
 import { SlotCard } from './SlotCard';
 import { Swimlanes, Lane } from './Swimlanes';
-import { needsYou, shortPath } from '../lib/format';
+import { agentLane, needsYou, shortPath } from '../lib/format';
 
 export interface SlotEntry {
   slot: WorktreeSlot;
@@ -39,8 +39,8 @@ export function SlotGrid({ project, slots, selectedId, onSelect, onBlock }: Prop
   // Manually-blocked first; the rest split into Running / Needs me / Available.
   const blocked = slots.filter((e) => e.agent?.blocked);
   const rest = slots.filter((e) => !e.agent?.blocked);
-  const running = rest.filter((e) => e.agent && e.agent.status === 'busy');
-  const needsMe = rest.filter((e) => e.agent && e.agent.status !== 'busy');
+  const running = rest.filter((e) => e.agent && agentLane(e.agent) === 'running');
+  const needsMe = rest.filter((e) => e.agent && agentLane(e.agent) === 'needs-me');
   const available = rest.filter((e) => !e.agent);
 
   return (
