@@ -51,8 +51,10 @@ export function run(cmd, args, opts = {}) {
 /** launchctl domain target for the current GUI user. */
 export const GUI = `gui/${UID}`;
 
-/** Is the dashboard answering on its port right now? Polls up to `tries` times. */
-export async function waitForServer(tries = 20, delayMs = 750) {
+/** Is the dashboard answering on its port right now? Polls up to `tries` times.
+ *  Default window (~40s) comfortably covers a first cold boot, where the collector scans
+ *  ~/.claude and ~/.codex before it starts listening. */
+export async function waitForServer(tries = 40, delayMs = 1000) {
   for (let i = 0; i < tries; i++) {
     try {
       const r = await fetch(`${URL}/api/snapshot`, { signal: AbortSignal.timeout(2000) });

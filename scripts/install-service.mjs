@@ -110,7 +110,7 @@ if (!loaded.ok) {
 run('/bin/launchctl', ['kickstart', '-k', `${GUI}/${LABEL}`]); // ensure a fresh start
 console.log(`${c.green('✓')} loaded into launchd (${LABEL})`);
 
-console.log(c.dim(`\nWaiting for the server on ${URL} …`));
+console.log(c.dim(`\nWaiting for the server on ${URL} … (first boot scans your sessions — ~20s)`));
 if (await waitForServer()) {
   console.log(`\n${c.green(c.bold('Mission Control is running →'))} ${c.bold(URL)}`);
   console.log(c.dim(`It will start at login and restart on crash. Logs: ${LOG.replace(HOME, '~')}`));
