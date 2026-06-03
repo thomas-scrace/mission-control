@@ -158,7 +158,7 @@ export function NextLine({ brief }: { brief: AgentBrief | null }) {
 /* ── Card footer: Hide/Unhide (left) + Details (right) ──────────────────── */
 
 const FOOTER_BTN =
-  'inline-flex items-center gap-1.5 rounded-md border border-hairline px-2.5 py-1.5 text-[12px] font-medium text-ink-dim transition-colors';
+  'inline-flex items-center gap-1.5 rounded-md border border-hairline px-2.5 py-1.5 text-[12px] font-medium text-ink-dim transition-colors hover:border-accent/50 hover:text-accent';
 
 /** Footer used on the All / Hidden tab cards: a Hide (or Unhide) toggle plus Details. */
 export function CardActions({
@@ -181,7 +181,7 @@ export function CardActions({
           onHide(id, !hidden);
         }}
         title={hidden ? 'Unhide — return this agent to the board' : 'Hide — tuck this agent behind the Hidden tab'}
-        className={`${FOOTER_BTN} hover:border-accent/50 hover:text-accent`}
+        className={FOOTER_BTN}
       >
         {hidden ? <EyeIcon /> : <EyeOffIcon />}
         {hidden ? 'Unhide' : 'Hide'}
@@ -208,7 +208,7 @@ function DetailsButtonInner({ id, onSelect }: { id: string; onSelect: (id: strin
         e.stopPropagation();
         onSelect(id);
       }}
-      className={`${FOOTER_BTN} hover:border-accent/50 hover:text-accent`}
+      className={FOOTER_BTN}
     >
       <DetailsPanelIcon />
       Details

@@ -1,8 +1,8 @@
 // Stop and remove the Mission Control LaunchAgent. Leaves your data/logs in ~/.missioncontrol
 // unless you pass --purge.
 import { existsSync, rmSync } from 'node:fs';
-import { REPO, HOME, LABEL, GUI, PLIST, STATE_DIR, c, run } from './_common.mjs';
 import path from 'node:path';
+import { REPO, HOME, LABEL, GUI, PLIST, STATE_DIR, c, run } from './_common.mjs';
 
 const purge = process.argv.includes('--purge');
 

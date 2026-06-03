@@ -4,7 +4,7 @@
 import { createRequire } from 'node:module';
 import { existsSync } from 'node:fs';
 import path from 'node:path';
-import { REPO, PORT, LABEL, PLIST, LOG, c, which, run } from './_common.mjs';
+import { REPO, PORT, LABEL, GUI, PLIST, LOG, c, which, run } from './_common.mjs';
 
 let blockers = 0;
 const ok = (m) => console.log(`  ${c.green('✓')} ${m}`);
@@ -50,7 +50,7 @@ existsSync('/Applications/iTerm.app') ? ok('iTerm — used to open/focus Claude 
 console.log(c.dim('\n  service:'));
 if (existsSync(PLIST)) {
   ok(`LaunchAgent installed (${PLIST})`);
-  const st = run('/bin/launchctl', ['print', `gui/${process.getuid()}/${LABEL}`]);
+  const st = run('/bin/launchctl', ['print', `${GUI}/${LABEL}`]);
   console.log(st.ok ? `  ${c.green('✓')} loaded${/state = running/.test(st.out) ? ' and running' : ''}` : `  ${c.yellow('⚠')} installed but not loaded — run \`npm run install-service\``);
   console.log(c.dim(`     logs: ${LOG}`));
 } else {
