@@ -5,8 +5,8 @@ import { WaitingExchange } from './WaitingExchange';
 import {
   CARD_INTERACTIVE,
   CARD_SHELL,
+  CardActions,
   CardTitle,
-  DetailsButton,
   MetaRow,
   NextLine,
   SynthesizingBody,
@@ -23,16 +23,19 @@ interface Props {
   /** Live-ticking idle seconds (kept for the liveness/dim tone). */
   idleSec: number | null;
   onSelect: (id: string) => void;
+  /** Hide (or, on the Hidden tab, unhide) this agent. */
+  onHide: (id: string, hidden: boolean) => void;
 }
 
 /**
- * One agent card for the "All" overview tab. Same decluttered layout as the
- * per-project SlotCard (shared cardParts). Its drag handle lets you drag it to a
- * lane (e.g. Blocked) — the lanes are the drop targets.
+ * One agent card for the "All" overview tab (and the Hidden tab). Same decluttered
+ * layout as the per-project SlotCard (shared cardParts). Its drag handle lets you
+ * drag it to a lane (e.g. Blocked) — the lanes are the drop targets.
  */
-export const AgentCard = memo(function AgentCard({ agent, selected, idleSec, onSelect }: Props) {
+export const AgentCard = memo(function AgentCard({ agent, selected, idleSec, onSelect, onHide }: Props) {
   const wants = needsYou(agent);
-  const pending = briefPending(agent);
+  // Hidden agents aren't synthesized, so never show them the "Synthesizing…" shimmer.
+  const pending = briefPending(agent) && !agent.dismissed;
   const needsMe = agentLane(agent) === 'needs-me';
   const live = livenessLabel(agent, idleSec);
 
@@ -62,10 +65,10 @@ export const AgentCard = memo(function AgentCard({ agent, selected, idleSec, onS
       {agent.pr && <PrChip pr={agent.pr} />}
 
       {!pending && needsMe && <WaitingExchange agent={agent} />}
-      {!pending && <WorkChecks brief={agent.brief} />}
+      {!pending && <WorkChecks agent={agent} />}
       {!pending && <NextLine brief={agent.brief} />}
 
-      <DetailsButton id={agent.id} onSelect={onSelect} />
+      <CardActions id={agent.id} hidden={agent.dismissed} onHide={onHide} onSelect={onSelect} />
     </article>
   );
 });

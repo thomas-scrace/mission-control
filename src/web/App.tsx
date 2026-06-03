@@ -5,8 +5,10 @@ import { TopBar, type Filters } from './components/TopBar';
 import { Cards } from './components/Cards';
 import { ProjectTabs, type ProjectStat } from './components/ProjectTabs';
 import { SlotGrid, type SlotEntry } from './components/SlotGrid';
+import { HiddenView } from './components/HiddenView';
+import { ConnectionBanner } from './components/ConnectionBanner';
 import { DetailDrawer } from './components/DetailDrawer';
-import { agentLane, baseName, needsYou, sortAgents } from './lib/format';
+import { agentLane, baseName, needsYou, selectHidden, sortAgents } from './lib/format';
 
 const STALE_WINDOW_MS = 24 * 60 * 60 * 1000;
 
@@ -27,7 +29,7 @@ type MetaBody = {
 };
 
 export function App() {
-  const { agents, projects, loading, connection, serverTime } = useAgentStream();
+  const { agents, projects, loading, connection, serverTime, lastEventAt } = useAgentStream();
 
   const [filters, setFilters] = useState<Filters>(DEFAULT_FILTERS);
   const [selectedId, setSelectedId] = useState<string | null>(null);
@@ -182,6 +184,10 @@ export function App() {
     return { total, needYou: needY, live };
   }, [merged, filters.recent24h, now]);
 
+  // The Hidden tab's contents — every agent the user has hidden, regardless of the
+  // recent-window/tool/query filters (which apply only to the All tab).
+  const hiddenAgents = useMemo(() => selectHidden(merged), [merged]);
+
   const selected = useMemo(
     () => merged.find((a) => a.id === selectedId) ?? null,
     [merged, selectedId],
@@ -196,14 +202,21 @@ export function App() {
 
   // If the active project tab disappears, fall back to the All overview.
   useEffect(() => {
-    if (activeTab !== 'all' && !projects.some((p) => p.id === activeTab)) {
+    if (activeTab !== 'all' && activeTab !== 'hidden' && !projects.some((p) => p.id === activeTab)) {
       setActiveTab('all');
     }
   }, [projects, activeTab]);
 
-  // Hint the server which project is in view (bounds empty-slot PR polling).
+  // When the last hidden agent is unhidden, the Hidden tab vanishes — fall back to All.
   useEffect(() => {
-    setActiveProject(activeTab === 'all' ? null : activeTab);
+    if (activeTab === 'hidden' && hiddenAgents.length === 0) setActiveTab('all');
+  }, [activeTab, hiddenAgents.length]);
+
+  // Hint the server which project is in view (bounds empty-slot PR polling). Only real
+  // project tabs count — 'all' and 'hidden' map to no active project.
+  useEffect(() => {
+    const isProjectTab = activeTab !== 'all' && activeTab !== 'hidden';
+    setActiveProject(isProjectTab ? activeTab : null);
   }, [activeTab]);
 
   const handleMeta = useCallback((id: string, body: MetaBody) => {
@@ -222,6 +235,12 @@ export function App() {
   // Manually park / un-park a card in the Blocked lane (drag-to-lane). Persisted.
   const handleBlock = useCallback(
     (id: string, blocked: boolean) => handleMeta(id, { blocked }),
+    [handleMeta],
+  );
+
+  // Hide / unhide an agent (tucks it behind the Hidden tab). Persisted as `dismissed`.
+  const handleHide = useCallback(
+    (id: string, hidden: boolean) => handleMeta(id, { dismissed: hidden }),
     [handleMeta],
   );
 
@@ -250,12 +269,15 @@ export function App() {
         filtersDisabled={activeTab !== 'all'}
       />
 
+      <ConnectionBanner connection={connection} lastEventAt={lastEventAt} now={now} />
+
       <ProjectTabs
         projects={projects}
         stats={projectStats}
         active={activeTab}
         onSelect={setActiveTab}
         onAddProject={addProject}
+        hiddenCount={hiddenAgents.length}
       />
 
       <main className="relative flex min-h-0 flex-1 flex-col">
@@ -268,7 +290,16 @@ export function App() {
             filteredEmpty={filteredEmpty}
             onSelect={setSelectedId}
             onBlock={handleBlock}
+            onHide={handleHide}
             onClearFilters={handleClearFilters}
+          />
+        ) : activeTab === 'hidden' ? (
+          <HiddenView
+            agents={hiddenAgents}
+            selectedId={selectedId}
+            idleByAgent={idleByAgent}
+            onSelect={setSelectedId}
+            onHide={handleHide}
           />
         ) : (
           <SlotGrid

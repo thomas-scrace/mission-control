@@ -1,5 +1,8 @@
 import { describe, it, expect } from 'vitest';
-import { agentLane } from '../src/web/lib/format';
+import type { AgentRecord } from '../src/shared/types';
+import { agentLane, selectHidden } from '../src/web/lib/format';
+
+const agent = (over: Partial<AgentRecord>): AgentRecord => ({ id: 'x', order: 0, dismissed: false, ...over } as AgentRecord);
 
 // Running = process alive + actively working; Needs-me = process alive but yielded
 // (returned / asking / idle at the prompt); Inactive = no process (worktree free).
@@ -36,5 +39,30 @@ describe('agentLane', () => {
 
   it('a running background subagent keeps it Running even if the main thread is idle', () => {
     expect(agentLane({ status: 'idle', liveness: 'idle', subagentsActive: 1 })).toBe('running');
+  });
+});
+
+// The Hidden tab shows exactly the agents the user has hidden (dismissed === true),
+// in the same stable order as the board. Everything else stays out of it.
+describe('selectHidden', () => {
+  it('keeps only dismissed agents', () => {
+    const out = selectHidden([
+      agent({ id: 'a', dismissed: false }),
+      agent({ id: 'b', dismissed: true }),
+      agent({ id: 'c', dismissed: true }),
+    ]);
+    expect(out.map((a) => a.id)).toEqual(['b', 'c']);
+  });
+
+  it('orders hidden agents by board order (then id)', () => {
+    const out = selectHidden([
+      agent({ id: 'b', dismissed: true, order: 5 }),
+      agent({ id: 'a', dismissed: true, order: -2 }),
+    ]);
+    expect(out.map((a) => a.id)).toEqual(['a', 'b']);
+  });
+
+  it('returns an empty array when nothing is hidden', () => {
+    expect(selectHidden([agent({ id: 'a' }), agent({ id: 'b' })])).toEqual([]);
   });
 });

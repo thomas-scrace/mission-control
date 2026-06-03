@@ -324,9 +324,10 @@ function DrawerBody({ agent, serverTime, onClose, onMeta }: Props & { agent: Age
         <button
           type="button"
           onClick={() => onMeta(agent.id, { dismissed: !agent.dismissed })}
-          className="flex items-center gap-1.5 rounded border border-hairline-bright px-3 py-1.5 text-xs text-ink-dim transition-colors hover:border-error/50 hover:text-error"
+          title={agent.dismissed ? 'Unhide — return this agent to the board' : 'Hide — tuck this agent behind the Hidden tab'}
+          className="flex items-center gap-1.5 rounded border border-hairline-bright px-3 py-1.5 text-xs text-ink-dim transition-colors hover:border-accent/40 hover:text-ink"
         >
-          {agent.dismissed ? 'Restore' : 'Dismiss'}
+          {agent.dismissed ? 'Unhide' : 'Hide'}
         </button>
       </footer>
     </div>

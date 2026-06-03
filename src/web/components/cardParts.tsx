@@ -118,12 +118,11 @@ export function CardTitle({ agent }: { agent: AgentRecord }) {
 
 /* ── Simplify / review checks (replaces the phase stepper) ─────────────── */
 
-export function WorkChecks({ brief }: { brief: AgentBrief | null }) {
-  if (!brief || brief.state !== 'ready') return null;
+export function WorkChecks({ agent }: { agent: AgentRecord }) {
   return (
     <div className="flex items-center gap-2">
-      <Check label="Simplified" done={brief.simplified} />
-      <Check label="Reviewed" done={brief.reviewed} />
+      <Check label="Simplified" done={agent.simplified} />
+      <Check label="Reviewed" done={agent.reviewed} />
     </div>
   );
 }
@@ -156,23 +155,64 @@ export function NextLine({ brief }: { brief: AgentBrief | null }) {
   );
 }
 
-/* ── Details button (bottom-right) ─────────────────────────────────────── */
+/* ── Card footer: Hide/Unhide (left) + Details (right) ──────────────────── */
 
-export function DetailsButton({ id, onSelect }: { id: string; onSelect: (id: string) => void }) {
+const FOOTER_BTN =
+  'inline-flex items-center gap-1.5 rounded-md border border-hairline px-2.5 py-1.5 text-[12px] font-medium text-ink-dim transition-colors';
+
+/** Footer used on the All / Hidden tab cards: a Hide (or Unhide) toggle plus Details. */
+export function CardActions({
+  id,
+  hidden,
+  onHide,
+  onSelect,
+}: {
+  id: string;
+  hidden: boolean;
+  onHide: (id: string, hidden: boolean) => void;
+  onSelect: (id: string) => void;
+}) {
   return (
-    <div className="mt-auto flex justify-end pt-1">
+    <div className="mt-auto flex items-center justify-between pt-1">
       <button
         type="button"
         onClick={(e) => {
           e.stopPropagation();
-          onSelect(id);
+          onHide(id, !hidden);
         }}
-        className="inline-flex items-center gap-1.5 rounded-md border border-hairline px-2.5 py-1.5 text-[12px] font-medium text-ink-dim transition-colors hover:border-accent/50 hover:text-accent"
+        title={hidden ? 'Unhide — return this agent to the board' : 'Hide — tuck this agent behind the Hidden tab'}
+        className={`${FOOTER_BTN} hover:border-accent/50 hover:text-accent`}
       >
-        <DetailsPanelIcon />
-        Details
+        {hidden ? <EyeIcon /> : <EyeOffIcon />}
+        {hidden ? 'Unhide' : 'Hide'}
       </button>
+      <DetailsButtonInner id={id} onSelect={onSelect} />
     </div>
+  );
+}
+
+/** Details button used standalone on slot cards (its own right-aligned row). */
+export function DetailsButton({ id, onSelect }: { id: string; onSelect: (id: string) => void }) {
+  return (
+    <div className="mt-auto flex justify-end pt-1">
+      <DetailsButtonInner id={id} onSelect={onSelect} />
+    </div>
+  );
+}
+
+function DetailsButtonInner({ id, onSelect }: { id: string; onSelect: (id: string) => void }) {
+  return (
+    <button
+      type="button"
+      onClick={(e) => {
+        e.stopPropagation();
+        onSelect(id);
+      }}
+      className={`${FOOTER_BTN} hover:border-accent/50 hover:text-accent`}
+    >
+      <DetailsPanelIcon />
+      Details
+    </button>
   );
 }
 
@@ -261,6 +301,25 @@ function DetailsPanelIcon() {
     <svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.4" aria-hidden>
       <rect x="2" y="3" width="12" height="10" rx="1.5" />
       <line x1="10" y1="3.4" x2="10" y2="12.6" />
+    </svg>
+  );
+}
+
+function EyeIcon() {
+  return (
+    <svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.4" aria-hidden>
+      <path d="M1.5 8S3.8 3.5 8 3.5 14.5 8 14.5 8 12.2 12.5 8 12.5 1.5 8 1.5 8Z" strokeLinejoin="round" />
+      <circle cx="8" cy="8" r="2" />
+    </svg>
+  );
+}
+
+function EyeOffIcon() {
+  return (
+    <svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.4" aria-hidden>
+      <path d="M6.3 4A6.6 6.6 0 0 1 8 3.5C12.2 3.5 14.5 8 14.5 8a11 11 0 0 1-1.9 2.4M3.5 5.6A11 11 0 0 0 1.5 8S3.8 12.5 8 12.5a6.5 6.5 0 0 0 2.4-.45" strokeLinecap="round" strokeLinejoin="round" />
+      <path d="M6.6 6.6a2 2 0 0 0 2.8 2.8" strokeLinecap="round" strokeLinejoin="round" />
+      <line x1="2.5" y1="2.5" x2="13.5" y2="13.5" strokeLinecap="round" />
     </svg>
   );
 }

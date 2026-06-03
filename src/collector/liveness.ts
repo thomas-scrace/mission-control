@@ -95,16 +95,21 @@ export function classifyClaudeLiveness(
   procs: ClaudeProc[],
   gitTop: string | null,
   now = Date.now(),
+  isLead = true,
 ): { liveness: Liveness; livenessBasis: string } {
   const recencyMs = now - agent.updatedAt;
   const ago = humanizeAgo(idleSeconds(agent.updatedAt, now));
   const matched = findClaudeProc(agent.cwd, procs, gitTop) != null;
   const anyAlive = procs.length > 0;
+  // A worktree's live `claude` backs its MOST-RECENT session. Only that session may claim the
+  // process to sustain a "live"/"waiting" state; an older session sharing the directory is a
+  // closed terminal — don't let it inherit a sibling's process and masquerade as current.
+  const ownsProc = matched && isLead;
 
   // An agent blocked on YOUR input is a live, open session even though its transcript hasn't
-  // changed since it asked — don't let it decay to "idle". Require a claude process in its
-  // worktree so we never resurrect a session whose terminal was closed.
-  if (agent.status === 'waiting' && matched) {
+  // changed since it asked — don't let it decay to "idle". Require it to OWN a claude process
+  // in its worktree so we never resurrect a session whose terminal was closed.
+  if (agent.status === 'waiting' && ownsProc) {
     return { liveness: 'live', livenessBasis: `waiting on you · claude in ${agent.worktree}` };
   }
 
@@ -114,10 +119,10 @@ export function classifyClaudeLiveness(
     return { liveness: 'idle', livenessBasis: `active ${ago} ago · no live process` };
   }
   if (recencyMs < IDLE_RECENT_MS) return { liveness: 'idle', livenessBasis: `active ${ago} ago` };
-  // Quiet for a while — ENDED, unless a claude is still running in this worktree (it's open,
-  // just idle at the prompt). This keeps an occupied worktree from looking dead, and lets a
-  // worktree with no process read as genuinely free (available).
-  if (matched) return { liveness: 'idle', livenessBasis: `claude open in ${agent.worktree} · quiet ${ago}` };
+  // Quiet for a while — ENDED, unless THIS session still owns a claude in its worktree (it's
+  // open, just idle at the prompt). This keeps the occupying session from looking dead, lets an
+  // older sibling read as ended, and lets a process-free worktree read as genuinely available.
+  if (ownsProc) return { liveness: 'idle', livenessBasis: `claude open in ${agent.worktree} · quiet ${ago}` };
   return { liveness: 'ended', livenessBasis: `idle ${ago} · no recent activity` };
 }
 

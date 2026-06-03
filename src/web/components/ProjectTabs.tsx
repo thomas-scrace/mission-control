@@ -10,9 +10,11 @@ export interface ProjectStat {
 interface Props {
   projects: Project[];
   stats: Record<string, ProjectStat>;
-  active: string; // 'all' | projectId
+  active: string; // 'all' | 'hidden' | projectId
   onSelect: (tab: string) => void;
   onAddProject: (path: string) => Promise<{ ok: boolean; detail: string }>;
+  /** Number of hidden agents — the Hidden tab only appears when there's something in it. */
+  hiddenCount: number;
 }
 
 /**
@@ -20,7 +22,7 @@ interface Props {
  * order) with occupied / need-you / dirty pills, plus a "+ Add project" path input.
  * Horizontally scrollable so many projects never break the layout.
  */
-export function ProjectTabs({ projects, stats, active, onSelect, onAddProject }: Props) {
+export function ProjectTabs({ projects, stats, active, onSelect, onAddProject, hiddenCount }: Props) {
   // Stable order — sort once by name then id; never reshuffle on stat changes.
   const ordered = useMemo(
     () => [...projects].sort((a, b) => (a.name < b.name ? -1 : a.name > b.name ? 1 : a.id < b.id ? -1 : 1)),
@@ -43,8 +45,42 @@ export function ProjectTabs({ projects, stats, active, onSelect, onAddProject }:
           stat={stats[p.id]}
         />
       ))}
+      {(hiddenCount > 0 || active === 'hidden') && (
+        <HiddenTab count={hiddenCount} active={active === 'hidden'} onClick={() => onSelect('hidden')} />
+      )}
       <AddProject onAddProject={onAddProject} />
     </nav>
+  );
+}
+
+/** The Hidden-agents stash tab (only shown when something is hidden). */
+function HiddenTab({ count, active, onClick }: { count: number; active: boolean; onClick: () => void }) {
+  return (
+    <button
+      type="button"
+      role="tab"
+      aria-selected={active}
+      onClick={onClick}
+      title="Agents you've hidden from the board"
+      className={[
+        'ml-1 flex shrink-0 items-center gap-1.5 rounded-md px-3 py-1.5 text-[12px] font-medium transition-colors',
+        active ? 'bg-accent/15 text-accent' : 'text-ink-faint hover:text-ink-dim',
+      ].join(' ')}
+    >
+      <EyeOffMark />
+      Hidden
+      <span className="tabular-nums text-ink-faint/70">{count}</span>
+    </button>
+  );
+}
+
+function EyeOffMark() {
+  return (
+    <svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.4" aria-hidden>
+      <path d="M6.3 4A6.6 6.6 0 0 1 8 3.5C12.2 3.5 14.5 8 14.5 8a11 11 0 0 1-1.9 2.4M3.5 5.6A11 11 0 0 0 1.5 8S3.8 12.5 8 12.5a6.5 6.5 0 0 0 2.4-.45" strokeLinecap="round" strokeLinejoin="round" />
+      <path d="M6.6 6.6a2 2 0 0 0 2.8 2.8" strokeLinecap="round" strokeLinejoin="round" />
+      <line x1="2.5" y1="2.5" x2="13.5" y2="13.5" strokeLinecap="round" />
+    </svg>
   );
 }
 

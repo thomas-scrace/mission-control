@@ -297,6 +297,8 @@ export function buildClaudeAgent(file: string, records: any[], mtimeMs: number):
     updatedAt: f.lastTs ?? mtimeMs,
     prLink: f.prLink,
     permissionMode: f.permissionMode,
+    simplified: false, // filled in by the collector via workChecksFor (whole-file scan)
+    reviewed: false,
     brief: null,
     pr: null,
     sourceFile: file,

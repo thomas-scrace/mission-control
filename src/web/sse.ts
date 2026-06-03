@@ -1,6 +1,7 @@
 /// <reference types="vite/client" />
 import { useEffect, useState } from 'react';
 import type { AgentRecord, Project, ServerEvent, SlotAgentRef, Tool, WorktreeSlot } from '../shared/types';
+import { isStreamStale } from './lib/streamHealth';
 
 /**
  * Dev-only mock toggle. The DEFAULT is to hit the real `/api` endpoints.
@@ -35,6 +36,8 @@ export interface AgentStream {
   connection: ConnectionState;
   /** Server clock from the most recent event; falls back to Date.now(). */
   serverTime: number;
+  /** Client clock (epoch ms) of the last event we received — drives the stale banner. */
+  lastEventAt: number;
 }
 
 /** Replace the item with the same id (in place — no reorder), or append it. */
@@ -61,6 +64,7 @@ export function useAgentStream(): AgentStream {
   const [loading, setLoading] = useState(true);
   const [connection, setConnection] = useState<ConnectionState>('connecting');
   const [serverTime, setServerTime] = useState<number>(() => Date.now());
+  const [lastEventAt, setLastEventAt] = useState<number>(() => Date.now());
 
   useEffect(() => {
     if (mockEnabled()) {
@@ -76,6 +80,12 @@ export function useAgentStream(): AgentStream {
 
     let cancelled = false;
     let es: EventSource | null = null;
+    let lastAt = Date.now();
+    // Record that we just heard from the server (any event, including a ping heartbeat).
+    const mark = () => {
+      lastAt = Date.now();
+      setLastEventAt(lastAt);
+    };
 
     // 1) Initial snapshot.
     void fetch('/api/snapshot', { headers: { accept: 'application/json' } })
@@ -93,6 +103,7 @@ export function useAgentStream(): AgentStream {
         setProjects(Array.isArray(data.projects) ? data.projects : []);
         if (typeof data.serverTime === 'number') setServerTime(data.serverTime);
         setLoading(false);
+        mark();
       })
       .catch(() => {
         // Don't fail hard — the SSE snapshot event will populate us anyway.
@@ -104,11 +115,17 @@ export function useAgentStream(): AgentStream {
       es = new EventSource('/api/events');
 
       es.onopen = () => {
-        if (!cancelled) setConnection('open');
+        if (!cancelled) {
+          setConnection('open');
+          mark();
+        }
       };
 
       es.onmessage = (ev: MessageEvent<string>) => {
         if (cancelled) return;
+        mark();
+        // Any event means the stream is alive — clear a prior reconnecting state.
+        setConnection('open');
         let parsed: ServerEvent;
         try {
           parsed = JSON.parse(ev.data) as ServerEvent;
@@ -138,6 +155,8 @@ export function useAgentStream(): AgentStream {
           case 'project-remove':
             setProjects((prev) => prev.filter((p) => p.id !== parsed.id));
             break;
+          case 'ping':
+            break; // heartbeat — liveness already recorded by mark()
         }
       };
 
@@ -148,15 +167,45 @@ export function useAgentStream(): AgentStream {
       };
     };
 
+    // Tear down the current stream and open a fresh one (which re-fetches a snapshot on connect).
+    const reconnect = () => {
+      if (cancelled) return;
+      setConnection('reconnecting');
+      try {
+        es?.close();
+      } catch {
+        /* ignore */
+      }
+      connect();
+      mark(); // reset the clock so the watchdog doesn't immediately re-fire
+    };
+
     connect();
+
+    // Watchdog: a half-open connection (e.g. after the machine sleeps) never fires `error`,
+    // so the socket looks "open" while no data flows. If we haven't heard ANYTHING — not even a
+    // heartbeat — for too long, force a reconnect so the board can never silently go stale.
+    const watchdog = setInterval(() => {
+      if (!cancelled && isStreamStale(lastAt, Date.now())) reconnect();
+    }, 5000);
+
+    // Coming back from a background/asleep tab: re-sync immediately if we've gone stale.
+    const onVisible = () => {
+      if (!cancelled && document.visibilityState === 'visible' && isStreamStale(lastAt, Date.now())) {
+        reconnect();
+      }
+    };
+    document.addEventListener('visibilitychange', onVisible);
 
     return () => {
       cancelled = true;
+      clearInterval(watchdog);
+      document.removeEventListener('visibilitychange', onVisible);
       es?.close();
     };
   }, []);
 
-  return { agents, projects, loading, connection, serverTime };
+  return { agents, projects, loading, connection, serverTime, lastEventAt };
 }
 
 /** POST JSON (or nothing) to an /api endpoint. Shared by the action helpers below. */
@@ -254,6 +303,8 @@ function makeMockData(): { seed: AgentRecord[]; projects: Project[]; serverTime:
     updatedAt: now,
     prLink: null,
     permissionMode: null,
+    simplified: false,
+    reviewed: false,
     brief: null,
     pr: null,
     sourceFile: '/mock/session.jsonl',
@@ -301,8 +352,6 @@ function makeMockData(): { seed: AgentRecord[]; projects: Project[]; serverTime:
         needsReason: 'Wants approval to refactor the grid into a virtualized list.',
         lastAsk: 'Build the Mission Control dashboard front-end.',
         nextStep: 'Approve (or decline) the virtualized-list refactor to continue.',
-        simplified: false,
-        reviewed: false,
         at: now - 4_000,
         state: 'ready',
       },
@@ -356,8 +405,6 @@ function makeMockData(): { seed: AgentRecord[]; projects: Project[]; serverTime:
         needsReason: 'The retry-logic test is failing with a TypeError.',
         lastAsk: 'Fix the 504 on the billing endpoint.',
         nextStep: 'Inspect the failing retry test and decide how to handle undefined responses.',
-        simplified: false,
-        reviewed: false,
         at: now - 9_000,
         state: 'ready',
       },
@@ -380,6 +427,7 @@ function makeMockData(): { seed: AgentRecord[]; projects: Project[]; serverTime:
       idleSec: 1,
       updatedAt: now - 1_000,
       order: -4000,
+      simplified: true,
       pr: {
         number: 145,
         url: 'https://github.com/acme/design-system/pull/145',
@@ -403,8 +451,6 @@ function makeMockData(): { seed: AgentRecord[]; projects: Project[]; serverTime:
         needsReason: null,
         lastAsk: 'Migrate color tokens to Tailwind v4 @theme.',
         nextStep: 'Run the build to confirm the token migration compiles cleanly.',
-        simplified: true,
-        reviewed: false,
         at: now - 1_000,
         state: 'ready',
       },
@@ -433,8 +479,6 @@ function makeMockData(): { seed: AgentRecord[]; projects: Project[]; serverTime:
         needsReason: null,
         lastAsk: null,
         nextStep: null,
-        simplified: false,
-        reviewed: false,
         at: now - 360_000,
         state: 'pending',
       },
@@ -471,6 +515,8 @@ function makeMockData(): { seed: AgentRecord[]; projects: Project[]; serverTime:
       tokens: 191_000,
       contextWindow: 200_000,
       order: -2000,
+      simplified: true,
+      reviewed: true,
       brief: {
         title: 'Docs search',
         summary: 'Added full-text search to the docs site; PR is open and tests pass.',
@@ -479,8 +525,6 @@ function makeMockData(): { seed: AgentRecord[]; projects: Project[]; serverTime:
         needsReason: null,
         lastAsk: 'Add full-text search to the docs.',
         nextStep: 'Review and merge PR #77.',
-        simplified: true,
-        reviewed: true,
         at: now - 2_460_000,
         state: 'ready',
       },
@@ -515,6 +559,8 @@ function makeMockData(): { seed: AgentRecord[]; projects: Project[]; serverTime:
       tokens: 42_000,
       contextWindow: 200_000,
       order: 0,
+      simplified: true,
+      reviewed: true,
       brief: {
         title: 'Palette review',
         summary: 'Reviewed the project colour palette and proposed higher-contrast values.',
@@ -523,8 +569,6 @@ function makeMockData(): { seed: AgentRecord[]; projects: Project[]; serverTime:
         needsReason: null,
         lastAsk: 'Review project color palette.',
         nextStep: 'Apply the proposed palette if you agree with the contrast bump.',
-        simplified: true,
-        reviewed: true,
         at: now - 54_000_000,
         state: 'ready',
       },

@@ -22,6 +22,7 @@ import { gitOut } from './git';
 import { idleSeconds } from './time';
 import { tailLines, parseJsonl, readFirstJson } from './tail';
 import { buildClaudeAgent, isClaudeSessionFile } from './adapters/claude';
+import { workChecksFor } from './workchecks';
 import { buildCodexAgent, type CodexThread } from './adapters/codex';
 import { getClaudeProcesses, getCodexHandles, classifyClaudeLiveness, classifyCodexLiveness } from './liveness';
 
@@ -72,12 +73,29 @@ async function enrich(agent: AgentRecord, now = Date.now()): Promise<AgentRecord
     Object.assign(agent, classifyCodexLiveness(agent, handles, now));
   } else {
     const procs = await getClaudeProcesses(now);
-    Object.assign(agent, classifyClaudeLiveness(agent, procs, top, now));
+    const isLead = await isWorktreeLead(agent, top);
+    Object.assign(agent, classifyClaudeLiveness(agent, procs, top, now, isLead));
     agent.subagentsActive = await countClaudeSubagents(agent, now);
   }
 
   agent.idleSec = idleSeconds(agent.updatedAt, now);
   return agent;
+}
+
+/**
+ * Is this the most-recently-active claude session in its worktree? A worktree's live `claude`
+ * process backs only its newest session; older sessions sharing the directory must not inherit it
+ * (else a long-dead session shows as live / "needs you"). We compare against any strictly-newer
+ * sibling whose git toplevel matches — gitInfo is cached, and the newest session is always warm.
+ */
+async function isWorktreeLead(agent: AgentRecord, top: string | null): Promise<boolean> {
+  if (!top) return true;
+  for (const other of store.all()) {
+    if (other.tool !== 'claude' || other.id === agent.id) continue;
+    if (other.updatedAt <= agent.updatedAt) continue; // only a strictly-newer session can outrank us
+    if ((await gitInfo(other.cwd)).top === top) return false;
+  }
+  return true;
 }
 
 /** Count background subagent sidechains modified very recently for a Claude session. */
@@ -160,6 +178,11 @@ async function ingestClaudeFile(file: string, now = Date.now()): Promise<void> {
   }
   const enriched = await enrich(agent, now);
   if (enriched.cwd && enriched.cwd.startsWith(MC_DIR)) return; // skip our own synthesis sessions
+  // Has this work been through the simplifier / code review? Read deterministically from the
+  // whole transcript (incrementally) — these milestones routinely scroll out of the tail window.
+  const checks = await workChecksFor(file);
+  enriched.simplified = checks.simplified;
+  enriched.reviewed = checks.reviewed;
   commitAgent(enriched);
 }
 
@@ -241,6 +264,7 @@ function placeholder(id: string, tool: 'claude' | 'codex', file: string, mtimeMs
     status: 'unknown', statusDetail: null, liveness: 'unknown', livenessBasis: 'could not parse transcript',
     lastAction: null, lastMessage: null, lastUserPrompt: null, history: [], tokens: null, contextWindow: null, model: null,
     subagentsActive: null, idleSec: null, startedAt: null, updatedAt: mtimeMs, prLink: null, permissionMode: null,
+    simplified: false, reviewed: false,
     brief: null, pr: null, sourceFile: file, rawTail, pinned: false, jobName: null, dismissed: false, blocked: false, notes: null, order: 0,
   };
 }

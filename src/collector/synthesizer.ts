@@ -20,7 +20,7 @@ const execFileAsync = promisify(execFile);
 // Stable instructions live in the system prompt so the Anthropic prompt cache (5-min TTL)
 // covers them across a sweep — only the small per-agent digest varies.
 const SYSTEM_PROMPT = `You summarize the live state of an AI coding agent's session for an at-a-glance dashboard. You receive a DIGEST of the recent transcript. Reply with ONLY a JSON object (no prose, no markdown fences) with exactly these keys:
-{"title": string, "summary": string, "phase": string, "needsYou": boolean, "needsReason": string, "lastAsk": string, "nextStep": string, "simplified": boolean, "reviewed": boolean}
+{"title": string, "summary": string, "phase": string, "needsYou": boolean, "needsReason": string, "lastAsk": string, "nextStep": string}
 Definitions:
 - title: a CLEAR, SPECIFIC name for what this task is actually doing — a short phrase a human can understand at a glance, up to ~7 words, sentence case. Read the recent activity and the user's request and name the real objective, not a generic label. Prefer specificity over brevity. GOOD: "Dedupe debounced input-event types", "Fix Smartlead PR review flow", "Migrate colour tokens to Tailwind v4", "Add full-text search to docs". BAD (too vague/cryptic): "Type Dedup Deploy", "UI fix", "Update code". No trailing period.
 - summary: ONE plain-language sentence naming the overall project/task this agent is working on. No file paths, no jargon. (≤16 words)
@@ -29,14 +29,12 @@ Definitions:
 - needsReason: if needsYou is true, a short phrase for what it needs; otherwise "".
 - lastAsk: paraphrase the most recent thing the human asked the agent to do — this should always be filled in for a paused agent (≤14 words).
 - nextStep: the single clearest next action — what the agent will do next, or what the human must do if it's blocked (≤14 words).
-- simplified: true if, on the MOST RECENT batch of work, a code-simplifier / refactor-for-clarity pass has already been run (see the simplification PHASE HINT and the activity). Otherwise false.
-- reviewed: true if, on the MOST RECENT batch of work, a code review (e.g. /code-review) has already been run (see the code-review PHASE HINT and the activity). Otherwise false.
 Output JSON only.`;
 
 const PHASES_OK = new Set<Phase>(['planning', 'execution', 'testing', 'simplification', 'code-review', 'release']);
 
 /** A short hash of the fields that, when changed, warrant re-synthesis. */
-const PROMPT_VERSION = 'v3'; // bump when the synthesis prompt/schema changes, to invalidate cached briefs
+const PROMPT_VERSION = 'v4'; // bump when the synthesis prompt/schema changes, to invalidate cached briefs
 
 export function contentHash(a: AgentRecord): string {
   // Include model + prompt version so switching them invalidates cached briefs.
@@ -82,8 +80,6 @@ function parseBrief(resultText: string): AgentBrief {
     needsReason: obj.needsReason ? String(obj.needsReason).slice(0, 160) : null,
     lastAsk: obj.lastAsk ? String(obj.lastAsk).slice(0, 200) : null,
     nextStep: obj.nextStep ? String(obj.nextStep).slice(0, 200) : null,
-    simplified: !!obj.simplified,
-    reviewed: !!obj.reviewed,
     at: Date.now(),
     state: 'ready',
   };
@@ -189,5 +185,5 @@ export function considerSynthesis(agent: AgentRecord, apply: ApplyBrief): void {
 }
 
 function emptyBrief(state: AgentBrief['state']): AgentBrief {
-  return { title: '', summary: '', phase: null, needsYou: false, needsReason: null, lastAsk: null, nextStep: null, simplified: false, reviewed: false, at: Date.now(), state };
+  return { title: '', summary: '', phase: null, needsYou: false, needsReason: null, lastAsk: null, nextStep: null, at: Date.now(), state };
 }

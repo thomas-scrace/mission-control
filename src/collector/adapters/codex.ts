@@ -206,6 +206,8 @@ export function buildCodexAgent(thread: CodexThread, records: any[], mtimeMs: nu
     updatedAt: dbUpdated ?? f.lastTs ?? mtimeMs,
     prLink: null,
     permissionMode: null,
+    simplified: false, // Codex transcripts don't carry the Claude code-simplifier/code-review markers
+    reviewed: false,
     brief: null,
     pr: null,
     sourceFile: thread.rollout_path,

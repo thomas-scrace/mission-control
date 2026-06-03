@@ -37,3 +37,29 @@ describe('classifyClaudeLiveness — occupied vs available', () => {
     expect(r.liveness).toBe('ended');
   });
 });
+
+// A worktree's live `claude` process backs its MOST-RECENT session. Older sessions that
+// merely share the directory must NOT inherit that process and masquerade as live/needs-you.
+// The collector passes isLead=false for any session that isn't the worktree's newest.
+describe('classifyClaudeLiveness — only the worktree lead claims the process', () => {
+  const stale = Date.now() - 56 * 60 * 60_000; // 56h ago (the real-world bug)
+
+  it('a stale WAITING non-lead session does NOT show live (it inherited a sibling\'s process)', () => {
+    const lead = classifyClaudeLiveness(agent({ status: 'waiting', updatedAt: stale }), [proc('/Users/me/repo')], '/Users/me/repo', undefined, true);
+    expect(lead.liveness).toBe('live'); // the lead still does
+
+    const nonLead = classifyClaudeLiveness(agent({ status: 'waiting', updatedAt: stale }), [proc('/Users/me/repo')], '/Users/me/repo', undefined, false);
+    expect(nonLead.liveness).toBe('ended');
+  });
+
+  it('a quiet non-lead session reads as ended (its worktree-mate owns the process)', () => {
+    const quiet = Date.now() - 30 * 60_000;
+    const nonLead = classifyClaudeLiveness(agent({ status: 'idle', updatedAt: quiet }), [proc('/Users/me/repo')], '/Users/me/repo', undefined, false);
+    expect(nonLead.liveness).toBe('ended');
+  });
+
+  it('omitting isLead preserves the old behavior (defaults to lead)', () => {
+    const r = classifyClaudeLiveness(agent({ status: 'waiting' }), [proc('/Users/me/repo')], '/Users/me/repo');
+    expect(r.liveness).toBe('live');
+  });
+});

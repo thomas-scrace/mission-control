@@ -14,13 +14,15 @@ interface Props {
   onSelect: (id: string) => void;
   /** Manually (un)block a card by dragging it to/from the Blocked lane. */
   onBlock: (id: string, blocked: boolean) => void;
+  /** Hide an agent (tucks it behind the Hidden tab). */
+  onHide: (id: string, hidden: boolean) => void;
   onClearFilters: () => void;
 }
 
 /** The "All" overview: agents split into Blocked / Running / Needs me / Inactive lanes. */
-export function Cards({ agents, selectedId, idleByAgent, loading, filteredEmpty, onSelect, onBlock, onClearFilters }: Props) {
+export function Cards({ agents, selectedId, idleByAgent, loading, filteredEmpty, onSelect, onBlock, onHide, onClearFilters }: Props) {
   const cardFor = (agent: AgentRecord) => (
-    <AgentCard key={agent.id} agent={agent} selected={agent.id === selectedId} idleSec={idleByAgent[agent.id] ?? null} onSelect={onSelect} />
+    <AgentCard key={agent.id} agent={agent} selected={agent.id === selectedId} idleSec={idleByAgent[agent.id] ?? null} onSelect={onSelect} onHide={onHide} />
   );
 
   // Manually-blocked first; the rest by the three statuses (the All tab has no "available"

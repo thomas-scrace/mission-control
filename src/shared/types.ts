@@ -42,8 +42,6 @@ export interface AgentBrief {
   needsReason: string | null; // if so, what it needs
   lastAsk: string | null; // the last thing you asked it to do
   nextStep: string | null; // the clear next action
-  simplified: boolean; // has a code-simplifier pass been run on the latest batch of work
-  reviewed: boolean; // has a /code-review pass been run on the latest batch of work
   at: number; // epoch ms when synthesized
   state: 'pending' | 'ready' | 'error';
 }
@@ -124,6 +122,11 @@ export interface AgentRecord {
   prLink: string | null;
   permissionMode: string | null;
 
+  // quality passes detected deterministically from the transcript (NOT the LLM): has a
+  // code-simplifier subagent / a /code-review (or /ultrareview) been run on this session.
+  simplified: boolean;
+  reviewed: boolean;
+
   // synthesized brief (LLM) — null until first synthesis completes
   brief: AgentBrief | null;
 
@@ -192,7 +195,10 @@ export type ServerEvent =
   | { type: 'upsert'; agent: AgentRecord; serverTime: number }
   | { type: 'remove'; id: string; serverTime: number }
   | { type: 'project-upsert'; project: Project; serverTime: number }
-  | { type: 'project-remove'; id: string; serverTime: number };
+  | { type: 'project-remove'; id: string; serverTime: number }
+  // A visible heartbeat (EventSource hides comment keep-alives), so the client can tell a
+  // live-but-quiet stream from a dead/half-open one and reconnect.
+  | { type: 'ping'; serverTime: number };
 
 /** Persisted project metadata (manual adds / hides) in meta.sqlite. */
 export interface ProjectMetaRow {

@@ -5,6 +5,7 @@ import { realpath } from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { PORT, HOME, SSE_COALESCE_MS } from '../shared/config';
+import { STREAM_HEARTBEAT_MS } from '../shared/stream';
 import type { ServerEvent, Project, Tool } from '../shared/types';
 import { store, type StoreChange } from '../collector/store';
 import { initMeta, setMeta, addProject, setProjectHidden } from '../collector/meta';
@@ -94,7 +95,9 @@ async function main(): Promise<void> {
     };
     projectStore.on('change', onProjectChange);
 
-    const keepAlive = setInterval(() => reply.raw.write(': keep-alive\n\n'), 25_000);
+    // Visible heartbeat (not an SSE comment — EventSource never surfaces those) so the client
+    // can distinguish a quiet-but-live stream from a dead/half-open one and reconnect.
+    const keepAlive = setInterval(() => send({ type: 'ping' }), STREAM_HEARTBEAT_MS);
     req.raw.on('close', () => {
       clearInterval(keepAlive);
       store.off('change', onChange);

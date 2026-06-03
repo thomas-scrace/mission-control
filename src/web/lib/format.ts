@@ -114,6 +114,11 @@ export function sortAgents(agents: readonly AgentRecord[]): AgentRecord[] {
   });
 }
 
+/** The agents the user has hidden ("dismissed"), in board order — the Hidden tab's contents. */
+export function selectHidden(agents: readonly AgentRecord[]): AgentRecord[] {
+  return sortAgents(agents.filter((a) => a.dismissed));
+}
+
 /**
  * "Needs you" — the single most important signal. An agent needs you when the
  * synthesized brief says so, or (independent of the brief) when its status is

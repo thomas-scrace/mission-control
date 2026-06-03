@@ -54,7 +54,7 @@ export const SlotCard = memo(function SlotCard({ slot, agent, label, labelTitle,
       {slot.pr && <PrChip pr={slot.pr} />}
 
       {!pending && needsMe && <WaitingExchange agent={agent} />}
-      {!pending && <WorkChecks brief={agent.brief} />}
+      {!pending && <WorkChecks agent={agent} />}
       {!pending && <NextLine brief={agent.brief} />}
 
       <DetailsButton id={agent.id} onSelect={onSelect} />
