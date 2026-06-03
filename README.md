@@ -15,11 +15,33 @@ no wrapper, nothing to change in how you start agents:
 It only ever **reads** those files (and runs read-only `git`/`gh` for state). The only things it writes
 are its own metadata (pins, renames, dismissals, notes, project list) in `~/.missioncontrol/meta.sqlite`.
 
-## Run
+## Requirements
+
+- **macOS** (the service, agent-launch, and focus features use launchd / iTerm / the Codex app).
+- **Node ≥ 20** and **git**.
+- Optional — each is detected and **degrades gracefully** if missing (run `npm run doctor` to see your status):
+  - `claude` CLI — Claude session discovery, the synthesized briefs, and "Start Claude".
+  - `codex` CLI / Codex app — Codex sessions are read from `~/.codex` regardless; the app is used for launch/focus.
+  - `gh` CLI — pull-request status on cards.
+  - **iTerm** — opening and focusing Claude agents.
+
+## Quickstart
 
 ```bash
-npm install        # once
-npm start          # build the UI + serve the app at http://127.0.0.1:4317
+git clone git@github.com:thomas-scrace/mission-control.git ~/missioncontrol
+cd ~/missioncontrol
+npm install
+npm run setup      # builds the UI, installs the background service, opens the dashboard
+```
+
+`npm run setup` builds the web UI and installs a **launchd service** that keeps the collector running —
+it starts at login and restarts on crash — then opens <http://127.0.0.1:4317>. First run with no agents
+shows a hint; just start a Claude Code or Codex session and it appears automatically.
+
+Prefer not to install a background service? Run it in the foreground instead:
+
+```bash
+npm start          # build + serve at http://127.0.0.1:4317 (stops when you close the terminal)
 ```
 
 For development with hot-reload (Vite UI + auto-restarting server):
@@ -28,7 +50,38 @@ For development with hot-reload (Vite UI + auto-restarting server):
 npm run dev        # UI on http://127.0.0.1:5173 (proxies /api to :4317)
 ```
 
-Other scripts: `npm test` (vitest), `npm run typecheck` (tsc). Override the port with `MC_PORT=...`.
+Override the port anywhere with `MC_PORT=...`. Other scripts: `npm test`, `npm run typecheck`, `npm run doctor`.
+
+## Running it as a background service
+
+The service is a per-user **LaunchAgent**, generated for your machine at install time (it captures your
+Node path and `PATH` so `claude`/`gh`/`git` resolve under launchd — the usual gotcha). It runs only as you,
+in your GUI session (so launching iTerm tabs still works), binds loopback only, and logs to
+`~/.missioncontrol/logs/server.log`.
+
+```bash
+npm run install-service     # generate the plist + load it (idempotent; re-run to update)
+npm run service:status      # running? pid? last exit? url + log path
+npm run service:logs        # tail -f the server log
+npm run service:restart     # restart now
+npm run service:stop        # stop until service:start (or next login)
+npm run service:start
+npm run uninstall-service   # stop + remove the service (add --purge to also delete ~/.missioncontrol)
+```
+
+After a **Node major upgrade**, the baked-in Node path/ABI can go stale — re-run
+`npm install && npm run install-service` to refresh it (`npm run doctor` will flag an ABI mismatch).
+
+## Troubleshooting
+
+- **Board looks frozen / "out of date":** the page shows a red *Disconnected* banner and auto-reconnects
+  when the collector returns; if it persists, the collector isn't running — `npm run service:status`,
+  then `npm run service:logs`.
+- **`npm run doctor`** is the first stop for anything: it reports Node/git/native-module/port health and
+  which optional integrations are active.
+- **Port already in use:** `MC_PORT=4400 npm run install-service` (or stop the other process).
+- **No PR status / no Claude briefs:** install `gh` / `claude` and re-run `npm run install-service` (the
+  service bakes their location into its `PATH`).
 
 ## What you see
 
@@ -57,18 +110,23 @@ Each worktree is a **slot** — a place for work to happen — shown as a card w
 Each card is an LLM-synthesized answer to "what is this, does it need me, what's next":
 
 - **A short title** and a plain-language summary of the task (synthesized, not the raw prompt).
-- **Which need you** — a prominent amber/red banner the moment an agent is blocked on a question, a plan
-  to approve, a decision, or an error.
-- **Where it is in the workflow** — a 6-step phase stepper: Planning → Execution → Testing →
-  Simplification → Code Review → Release. (Simplification and Code Review map to your `code-simplifier`
-  and `/code-review` skills.)
-- **The clear next step**, the tool's tinted logo (Claude / Codex), and a live "Working / Waiting on you
-  / Idle" liveness pill.
+- **Which need you** — agents split into **Running / Needs me** lanes (plus a manual **Blocked** lane you
+  can drag cards into), so what's waiting on you is never buried.
+- **Quality checks on the latest work** — **Simplified** and **Reviewed** pills light up once a
+  `code-simplifier` subagent or a `/code-review` has run. These are read straight from the transcript (not
+  guessed), so they stay accurate even after a long session.
+- **The clear next step**, the tool's tinted logo (Claude / Codex), and a live liveness pill.
+- **Hide** tucks utility/long-lived agents behind a **Hidden** tab (with Unhide), keeping the board to what
+  you're actively working on.
 
 **Click a card to jump to the actual agent window** — Claude focuses the exact iTerm tab (matched by the
-backing process's tty); Codex deep-links the thread (`codex://threads/<id>`). A separate button opens a
-detail drawer with the full activity timeline, latest message, tokens/context %, model, PR section, and
-pin/rename/dismiss/notes.
+backing process's tty); Codex deep-links the thread (`codex://threads/<id>`). A **Details** button opens a
+drawer with the full activity timeline, latest message, tokens/context %, model, PR section, and
+pin/rename/hide/notes.
+
+The live connection is **self-healing**: the server sends a heartbeat, and the client reconnects (and
+re-syncs) on its own after a sleep/network drop — showing a clear *Disconnected* banner meanwhile so a
+stale board is never mistaken for a live one.
 
 The synthesis is a small **headless `claude -p` call per agent** — it uses your existing Claude auth (no
 API key), runs from a dedicated cwd that's filtered out of the board, is cached by content hash in

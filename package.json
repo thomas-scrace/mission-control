@@ -10,9 +10,21 @@
     "dev:web": "vite",
     "build": "vite build",
     "start": "npm run build && NODE_ENV=production tsx src/server/index.ts",
+    "setup": "npm run build && node scripts/install-service.mjs",
+    "doctor": "node scripts/doctor.mjs",
+    "install-service": "node scripts/install-service.mjs",
+    "uninstall-service": "node scripts/uninstall-service.mjs",
+    "service:status": "node scripts/service.mjs status",
+    "service:logs": "node scripts/service.mjs logs",
+    "service:restart": "node scripts/service.mjs restart",
+    "service:start": "node scripts/service.mjs start",
+    "service:stop": "node scripts/service.mjs stop",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
     "test:watch": "vitest"
+  },
+  "engines": {
+    "node": ">=20"
   },
   "dependencies": {
     "@fastify/static": "^8.0.3",

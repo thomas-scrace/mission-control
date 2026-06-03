@@ -194,10 +194,29 @@ async function main(): Promise<void> {
     });
   }
 
-  await app.listen({ port: PORT, host: '127.0.0.1' });
+  try {
+    await app.listen({ port: PORT, host: '127.0.0.1' });
+  } catch (e) {
+    if ((e as NodeJS.ErrnoException)?.code === 'EADDRINUSE') {
+      // eslint-disable-next-line no-console
+      console.error(`[missioncontrol] port ${PORT} is already in use — another instance is probably running. Set MC_PORT to use a different port.`);
+      process.exit(1);
+    }
+    throw e;
+  }
   const where = existsSync(WEB_DIST) ? `http://127.0.0.1:${PORT}` : `dev API on :${PORT} (run \`npm run dev:web\` for the UI)`;
   // eslint-disable-next-line no-console
   console.log(`[missioncontrol] ${where}`);
+
+  // Clean shutdown so `launchctl` stop/restart (SIGTERM) doesn't hard-kill mid-write.
+  const shutdown = (sig: string) => {
+    // eslint-disable-next-line no-console
+    console.log(`[missioncontrol] ${sig} — shutting down`);
+    app.close().finally(() => process.exit(0));
+    setTimeout(() => process.exit(0), 3000).unref(); // backstop if close hangs
+  };
+  process.once('SIGTERM', () => shutdown('SIGTERM'));
+  process.once('SIGINT', () => shutdown('SIGINT'));
 }
 
 main().catch((e) => {
