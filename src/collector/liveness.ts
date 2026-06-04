@@ -114,8 +114,11 @@ export function classifyClaudeLiveness(
   }
 
   if (recencyMs < LIVE_RECENT_MS) {
-    if (matched) return { liveness: 'live', livenessBasis: `live claude in ${agent.worktree} · active ${ago} ago` };
-    if (anyAlive) return { liveness: 'live', livenessBasis: `claude running · active ${ago} ago` };
+    // Only the worktree lead may read its recent activity as "live" off a matching process; a
+    // superseded sibling that merely shares the directory falls through to idle. For a lone
+    // session (isLead always true) this is exactly the old `matched` / `anyAlive` behavior.
+    if (ownsProc) return { liveness: 'live', livenessBasis: `live claude in ${agent.worktree} · active ${ago} ago` };
+    if (isLead && anyAlive) return { liveness: 'live', livenessBasis: `claude running · active ${ago} ago` };
     return { liveness: 'idle', livenessBasis: `active ${ago} ago · no live process` };
   }
   if (recencyMs < IDLE_RECENT_MS) return { liveness: 'idle', livenessBasis: `active ${ago} ago` };

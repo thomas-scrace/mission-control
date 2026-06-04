@@ -134,7 +134,7 @@ function Check({ label, done }: { label: string; done: boolean }) {
         'inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-[12px] font-medium',
         done ? 'border-done/40 bg-done/10 text-done' : 'border-hairline text-ink-faint',
       ].join(' ')}
-      title={done ? `${label}: done on the latest work` : `${label}: not run yet`}
+      title={done ? `${label}: has run this session` : `${label}: not run yet`}
     >
       {done ? <CheckIcon /> : <HollowDot />}
       {label}

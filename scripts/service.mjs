@@ -43,11 +43,12 @@ switch (cmd) {
     break;
   }
   case 'stop': {
-    // bootout stops AND unloads (KeepAlive would relaunch a mere SIGTERM); the plist stays so
-    // `service:start` can bring it back. Survives until then — but NOT across a re-login.
+    // bootout stops AND unloads it (KeepAlive would just relaunch a SIGTERM). The plist stays, so
+    // it comes back on `npm run service:start` OR at your next login (RunAtLoad) — use
+    // `uninstall-service` to stop it for good.
     ensureInstalled();
     run('/bin/launchctl', ['bootout', `${GUI}/${LABEL}`]);
-    console.log(`${c.green('✓')} stopped (run \`npm run service:start\` to resume)`);
+    console.log(`${c.green('✓')} stopped (resume with \`npm run service:start\`; it also returns at next login)`);
     break;
   }
   case 'start': {

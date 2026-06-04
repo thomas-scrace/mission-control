@@ -62,4 +62,12 @@ describe('classifyClaudeLiveness — only the worktree lead claims the process',
     const r = classifyClaudeLiveness(agent({ status: 'waiting' }), [proc('/Users/me/repo')], '/Users/me/repo');
     expect(r.liveness).toBe('live');
   });
+
+  it('a recently-active non-lead does NOT show live just because it shares the worktree', () => {
+    const recent = Date.now() - 90_000; // 90s — inside the 2-min "live" window
+    const lead = classifyClaudeLiveness(agent({ status: 'idle', updatedAt: recent }), [proc('/Users/me/repo')], '/Users/me/repo', undefined, true);
+    expect(lead.liveness).toBe('live'); // the lead, recently active → live (unchanged)
+    const nonLead = classifyClaudeLiveness(agent({ status: 'idle', updatedAt: recent }), [proc('/Users/me/repo')], '/Users/me/repo', undefined, false);
+    expect(nonLead.liveness).not.toBe('live'); // a superseded sibling must not masquerade as live
+  });
 });
